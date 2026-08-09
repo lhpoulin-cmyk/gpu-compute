@@ -23,8 +23,9 @@ cuda_version=$(yaml_value "$profile" cuda pinned_version)
 cuda_pkg=$(yaml_value "$profile" cuda toolkit_package)
 cuda_pkg_version=$(yaml_value "$profile" cuda toolkit_package_version)
 driver_pkg=$(yaml_value "$profile" cuda driver_package)
-driver_pkg_version=$(yaml_value "$profile" cuda driver_package_version)
 driver_branch=$(yaml_value "$profile" cuda driver_branch)
+driver_policy=$(yaml_value "$profile" cuda driver_policy)
+min_driver=$(yaml_value "$profile" cuda minimum_driver)
 repo_distro=$(yaml_value "$profile" cuda repository_distro)
 keyring_pkg=$(yaml_value "$profile" cuda repository_keyring_package)
 keyring_sha=$(yaml_value "$profile" cuda repository_keyring_sha256)
@@ -40,7 +41,7 @@ llama_prefix=$(yaml_value "$profile" llama_cpp install_prefix)
 
 required=(
   "$os_version" "$expected_pci" "$cuda_version" "$cuda_pkg" "$cuda_pkg_version"
-  "$driver_pkg" "$driver_pkg_version" "$driver_branch" "$repo_distro" "$keyring_pkg"
+  "$driver_pkg" "$driver_branch" "$driver_policy" "$min_driver" "$repo_distro" "$keyring_pkg"
   "$keyring_sha" "$ollama_version" "$ollama_asset" "$ollama_url" "$ollama_sha"
   "$llama_repo" "$llama_ref" "$llama_commit" "$llama_arch" "$llama_prefix"
 )
@@ -50,6 +51,7 @@ for value in "${required[@]}"; do
     exit 65
   }
 done
+[[ "$driver_policy" == latest-in-branch ]] || { echo "unsupported driver policy: $driver_policy" >&2; exit 65; }
 
 keyring_url="https://developer.download.nvidia.com/compute/cuda/repos/${repo_distro}/x86_64/${keyring_pkg}"
 headers_pkg="linux-headers-$(uname -r)"
@@ -58,7 +60,7 @@ pinning_pkg="nvidia-driver-pinning-${driver_branch}"
 echo "# NVIDIA modern stack"
 echo "# Ubuntu: $os_version"
 echo "# GPU PCI ID: $expected_pci"
-echo "# driver: $driver_pkg=$driver_pkg_version ($pinning_pkg)"
+echo "# driver: newest authenticated $driver_pkg in branch $driver_branch (minimum $min_driver)"
 echo "# CUDA: $cuda_pkg=$cuda_pkg_version"
 echo "# Ollama: $ollama_version"
 echo "# llama.cpp: $llama_ref @ $llama_commit, CUDA arch $llama_arch"
@@ -68,9 +70,10 @@ if ! $apply; then
 would:
   verify Ubuntu $os_version / x86_64 and GPU PCI ID $expected_pci
   verify/install NVIDIA cuda-keyring from $keyring_url
-  apt-simulate $headers_pkg $pinning_pkg $driver_pkg=$driver_pkg_version $cuda_pkg=$cuda_pkg_version
+  select the newest authenticated $driver_pkg version in branch $driver_branch, >= $min_driver
+  apt-simulate $headers_pkg $pinning_pkg selected-driver $cuda_pkg=$cuda_pkg_version
   refuse any simulated package removals
-  install the exact driver/toolkit meta-package versions
+  install that selected branch-$driver_branch driver and exact CUDA toolkit version
   install verified Ollama $ollama_version asset
   build llama.cpp $llama_ref at exact commit $llama_commit for sm_$llama_arch
   install Ollama service but leave it disabled/stopped until post-reboot GPU verification
@@ -114,10 +117,14 @@ fi
 dpkg -i "$keyring_path"
 apt-get update -q
 
-candidate_driver=$(apt-cache policy "$driver_pkg" | awk '/Candidate:/ {print $2}')
+candidate_driver=$(apt-cache madison "$driver_pkg" | awk -v branch="${driver_branch}." '$3 ~ "^" branch {print $3; exit}')
 candidate_cuda=$(apt-cache policy "$cuda_pkg" | awk '/Candidate:/ {print $2}')
-[[ "$candidate_driver" == "$driver_pkg_version" ]] || {
-  echo "unexpected $driver_pkg candidate: expected $driver_pkg_version observed $candidate_driver" >&2
+[[ -n "$candidate_driver" ]] || {
+  echo "no authenticated $driver_pkg candidate found in branch $driver_branch" >&2
+  exit 69
+}
+dpkg --compare-versions "$candidate_driver" ge "$min_driver" || {
+  echo "newest branch-$driver_branch candidate $candidate_driver is below minimum $min_driver" >&2
   exit 69
 }
 [[ "$candidate_cuda" == "$cuda_pkg_version" ]] || {
@@ -125,9 +132,12 @@ candidate_cuda=$(apt-cache policy "$cuda_pkg" | awk '/Candidate:/ {print $2}')
   exit 69
 }
 
+echo "selected NVIDIA driver: $driver_pkg=$candidate_driver"
+printf '%s\n' "$candidate_driver" > /var/lib/cuda-compute/selected-nvidia-driver-version.txt
+
 simulation=/var/lib/cuda-compute/nvidia-apt-simulation.txt
 apt-get -s install --no-install-recommends \
-  "$headers_pkg" "$pinning_pkg" "$driver_pkg=$driver_pkg_version" "$cuda_pkg=$cuda_pkg_version" \
+  "$headers_pkg" "$pinning_pkg" "$driver_pkg=$candidate_driver" "$cuda_pkg=$cuda_pkg_version" \
   | tee "$simulation"
 if grep -Eq '^Remv ' "$simulation"; then
   echo "package simulation proposes removals; refusing installation" >&2
@@ -136,8 +146,8 @@ if grep -Eq '^Remv ' "$simulation"; then
 fi
 
 apt-get install -y --no-install-recommends \
-  "$headers_pkg" "$pinning_pkg" "$driver_pkg=$driver_pkg_version" "$cuda_pkg=$cuda_pkg_version"
-apt-mark hold "$driver_pkg" "$cuda_pkg" >/dev/null
+  "$headers_pkg" "$pinning_pkg" "$driver_pkg=$candidate_driver" "$cuda_pkg=$cuda_pkg_version"
+apt-mark hold "$cuda_pkg" >/dev/null
 
 cuda_root="/usr/local/cuda-${cuda_version}"
 [[ -x "$cuda_root/bin/nvcc" ]] || { echo "nvcc missing at $cuda_root/bin/nvcc" >&2; exit 69; }
@@ -222,5 +232,6 @@ dpkg-query -W > /var/lib/cuda-compute/installed-package-versions.txt
 apt-mark showhold > /var/lib/cuda-compute/apt-holds.txt
 
 echo "NVIDIA/CUDA userspace and applications installed"
+echo "selected NVIDIA driver package: $candidate_driver"
 echo "Ollama is intentionally disabled/stopped until post-reboot NVIDIA verification"
 echo "reboot required before GPU smoke/acceptance"
