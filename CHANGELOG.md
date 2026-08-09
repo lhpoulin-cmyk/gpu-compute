@@ -1,10 +1,20 @@
 # Changelog
 
+## 2026-08-08 Phase 4 accepted / guest stack implemented
+
+- Accept VM 320 running as `cuda-compute-katra`, full-cloned from VM 9320 with all VM disks on `cuda-katra`, dual static NICs, and direct passthrough of `0000:01:00.0`.
+- Remove the unnecessary Proxmox logical PCI mapping requirement for the fixed hv-katra reference host; retain exact PCI identity and `vfio-pci` preflight.
+- Add guarded `bootstrap/prepare-model-disk.sh` for the blank 160 GiB model volume.
+- Implement `bootstrap/stack-nvidia-modern.sh` for Ubuntu 26.04, NVIDIA branch 610 open modules, CUDA 13.3, verified Ollama 0.32.0, and pinned llama.cpp `b10173` / `sm_120`.
+- Correct the unavailable `nvidia-open=610.57.04-1ubuntu1` profile pin to the current Ubuntu 26.04 repository version `610.43.02-1ubuntu1`; acceptance minimum remains `610.43.02`.
+- Keep Ollama disabled/stopped until after the required reboot and successful NVIDIA smoke test to prevent accidental CPU fallback.
+- Add `tests/unit/nvidia-modern-contract.sh` and fix workspace permissions for durable model work/output directories.
+
 ## 2026-08-08 Phase 4 deployment preparation
 
 - Add concrete non-secret `proxmox/hv-katra-rtx5070ti.yaml` for VM 320.
 - Replace placeholder/custom-snippet deployment with standard Proxmox cloud-init fields and a runtime SSH public-key file.
-- Make `deploy-instance.sh` preflight the accepted template, storage reserve, bridges/MTU, PCI mapping, exact RTX PCI identities, and host `vfio-pci` binding before mutation.
+- Make `deploy-instance.sh` preflight the accepted template, storage reserve, bridges/MTU, exact RTX PCI identities, and host `vfio-pci` binding before mutation.
 - Keep the 160 GiB model disk unformatted at host deployment time; formatting/mounting remains a separate first-boot gate.
 - Retire `proxmox/example-profile.yaml` as non-executable historical example material.
 - Add `tests/unit/deployment-contract.sh` to prevent reintroduction of placeholders, ISO fields, or custom cloud-init snippet dependencies.
@@ -38,12 +48,8 @@
 
 ## 2026-08-08 host execution authority doctrine correction
 
-- Clarify that an explicit, bounded operator play on `hv-katra` authorizes the
-  required host control-plane interfaces; a Codex sandbox limitation is an
-  execution-environment limitation, not a project authority boundary.
-- Preserve fail-closed scope controls and guest-runtime isolation while
-  removing categorical wording that prohibited authorized host-side Proxmox,
-  storage, and VFIO work.
+- Clarify that an explicit, bounded operator play on `hv-katra` authorizes the required host control-plane interfaces; a Codex sandbox limitation is an execution-environment limitation, not a project authority boundary.
+- Preserve fail-closed scope controls and guest-runtime isolation while removing categorical wording that prohibited authorized host-side Proxmox, storage, and VFIO work.
 
 ## 2026-08-08 hv-katra Phase 1 storage provision
 
