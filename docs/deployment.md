@@ -1,110 +1,99 @@
 # Deployment
 
-## Accepted prerequisites
+## Accepted infrastructure state
 
-The current hv-katra reference deployment begins from the accepted Phase 1--3 state:
+The hv-katra reference path begins from accepted Phase 1--4 state:
 
-- dedicated Proxmox LVM-thin storage `cuda-katra` on the approved 256 GiB SN5100 allocation;
-- RTX 5070 Ti host functions bound to `vfio-pci`;
-- logical Proxmox PCI mapping `gpu-compute-rtx5070ti`;
-- healthy `vmbr0` and `vmbr1` (`vmbr1` MTU 9000);
-- accepted Ubuntu 26.04 template VM 9320, `tpl-compute-ubuntu2604-20260808`.
+- dedicated `cuda-katra` LVM-thin storage on the approved 256 GiB SN5100 allocation;
+- accepted Ubuntu 26.04 template VM 9320;
+- VM 320 running as `cuda-compute-katra`;
+- direct passthrough of RTX 5070 Ti compute function `0000:01:00.0`;
+- healthy `vmbr0` and `vmbr1`, with `vmbr1` MTU 9000;
+- all VM 320 disks on `cuda-katra`.
 
-VM 9320 is an OS template only. It contains no GPU software, repository checkout,
-model disk, or production identity.
+The fixed single-host reference implementation does not require a Proxmox logical PCI
+mapping. The deployment script validates the exact compute/audio PCI IDs and
+`vfio-pci` ownership before direct `hostpci0` attachment.
 
-## Concrete reference profile
-
-Use:
-
-```text
-proxmox/hv-katra-rtx5070ti.yaml
-```
-
-It defines the non-secret VM 320 contract:
+## VM 320 contract
 
 - VMID 320 / `cuda-compute-katra`;
-- full clone of template 9320;
 - 8 vCPU / 16384 MiB RAM;
-- root and 160 GiB model disk on `cuda-katra`;
+- root 32 GiB on `cuda-katra`;
+- model disk 160 GiB on `cuda-katra`;
 - `192.168.10.92/24` on `vmbr0`, gateway `192.168.10.1`;
 - `192.168.100.92/24` on `vmbr1`, MTU 9000, no gateway;
 - DNS `192.168.10.250 192.168.10.251`;
 - search domain `home.arpa`;
-- logical PCI mapping `gpu-compute-rtx5070ti`.
+- direct RTX compute passthrough `0000:01:00.0`.
 
-`proxmox/example-profile.yaml` is retired example material and is not executable.
+## First-boot guest construction
 
-## Operator SSH access
-
-The only runtime identity input required by the deploy script is a readable SSH
-**public-key** file. It is passed with:
+The model disk is intentionally created blank by the host deployment. Inside VM 320,
+run the guarded preparation script first:
 
 ```bash
---ssh-public-key-file /path/to/operator.pub
+sudo /srv/cuda-compute/bootstrap/prepare-model-disk.sh --dry-run
+sudo /srv/cuda-compute/bootstrap/prepare-model-disk.sh --apply
 ```
 
-Do not pass or commit a private key. The deployment script rejects files containing
-private-key material and does not use GitHub credentials, passwords, or tokens.
+The script requires exactly one unambiguous ~160 GiB non-root blank disk and refuses
+existing partitions, signatures, or mounts. It creates ext4 `LABEL=cuda-models`, adds
+the `/mnt/models` fstab entry, and mounts it.
 
-## Dry-run and deployment
+Transfer the current source snapshot from the host checkout into `/srv/cuda-compute`.
+Do not place GitHub credentials or private SSH keys in the guest.
 
-First render the complete proposed mutation:
+Then run the RTX 5070 Ti bootstrap:
 
 ```bash
-proxmox/deploy-instance.sh \
-  --profile proxmox/hv-katra-rtx5070ti.yaml \
-  --ssh-public-key-file /path/to/operator.pub \
-  --dry-run
+sudo /srv/cuda-compute/bootstrap/install.sh \
+  --profile /srv/cuda-compute/config/profiles/nvidia-rtx5070ti/profile.yaml \
+  --operator louis --dry-run
+
+sudo /srv/cuda-compute/bootstrap/install.sh \
+  --profile /srv/cuda-compute/config/profiles/nvidia-rtx5070ti/profile.yaml \
+  --operator louis
 ```
 
-The dry-run must show only:
+The apply path uses the official NVIDIA Ubuntu 26.04 network repository/keyring,
+simulates the focused package transaction and refuses removals, installs the pinned
+branch-610 open driver and CUDA 13.3 toolkit meta packages, verifies and installs the
+pinned Ollama asset, and builds the exact llama.cpp commit for `sm_120`.
 
-1. full clone 9320 -> 320 on `cuda-katra`;
-2. CPU/RAM and two NIC configuration;
-3. 160 GiB `scsi1` on `cuda-katra`;
-4. standard Proxmox cloud-init identity/network configuration;
-5. logical RTX 5070 Ti PCI mapping attachment;
-6. optional VM start.
+Ollama remains disabled and stopped through this stage. Reboot before hardware tests.
 
-After review, apply:
+## Post-reboot acceptance
+
+After SSH returns:
 
 ```bash
-proxmox/deploy-instance.sh \
-  --profile proxmox/hv-katra-rtx5070ti.yaml \
-  --ssh-public-key-file /path/to/operator.pub \
-  --apply
+cd /srv/cuda-compute
+tests/smoke/cuda-nvidia
 ```
 
-Use `--no-start` when the VM should remain stopped after construction.
+Only when that passes, enable the inference service:
 
-Before mutation the script verifies the accepted template, target VMID/name,
-`cuda-katra` capacity, both bridges, MTU, logical PCI mapping availability, exact RTX
-5070 Ti PCI identities, and host `vfio-pci` binding. If failure occurs after VM creation,
-the partial VM is preserved for evidence instead of being silently destroyed.
+```bash
+sudo systemctl enable --now ollama.service
+```
 
-## First-boot boundary
+Then run:
 
-The deployment script does **not**:
+```bash
+tests/smoke/appliance
+tests/acceptance/appliance
+```
 
-- format the 160 GiB model disk;
-- install CUDA or NVIDIA guest packages;
-- clone the private GitHub repository inside the guest;
-- run Ollama/llama.cpp acceptance;
-- finalize instance state.
+Acceptance must prove the RTX 5070 Ti identity, compute capability 12.0, driver >=
+610.43.02, CUDA toolkit 13.3, compiled CUDA kernel execution, llama.cpp CUDA device,
+model storage, repeated GPU-backed Ollama inference, and output hashes.
 
-After first boot, a separate play must:
+Finalize instance state only after acceptance passes.
 
-1. verify Ubuntu 26.04 and both static network identities;
-2. prove the RTX 5070 Ti is visible to the guest;
-3. identify `scsi1` unambiguously, format it as the approved filesystem with label
-   `cuda-models`, and mount it at `/mnt/models`;
-4. transfer the current repository source to `/srv/cuda-compute` without copying
-   private GitHub credentials into the guest;
-5. run the RTX 5070 Ti package simulation and bootstrap;
-6. reboot if required;
-7. run smoke and hardware acceptance;
-8. finalize instance state only after acceptance passes.
+## Secure Boot / DKMS
 
-Acceptance, not VM creation or driver installation, promotes VM 320 into the reference
-appliance.
+Record `mokutil --sb-state` before driver installation when available. Secure Boot is
+not itself a reason to abandon the build. If the NVIDIA module does not load after
+reboot, capture DKMS/module/Secure Boot evidence and resolve that specific signing
+condition before enabling Ollama. Do not accept CPU fallback.
