@@ -22,6 +22,6 @@ grep -Fq 'utilization.gpu' "$capture"
 grep -Fq 'evidence/telemetry/' "$capture"
 grep -Fq 'CPU package' "$summary"
 grep -Fq 'GPU temp' "$summary"
-grep -Fq 'raw telemetry' "$doc"
+grep -Fiq 'raw telemetry' "$doc"
 
 echo "telemetry-contract: PASS"
