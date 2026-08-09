@@ -118,7 +118,9 @@ fi
 dpkg -i "$keyring_path"
 apt-get update -q
 
-candidate_driver=$(apt-cache madison "$driver_pkg" | awk -v branch="${driver_branch}." '$3 ~ "^" branch {print $3; exit}')
+candidate_driver=$(apt-cache madison "$driver_pkg" | awk -v branch="${driver_branch}." '
+  $3 ~ "^" branch && !selected { print $3; selected = 1 }
+')
 candidate_cuda=$(apt-cache policy "$cuda_pkg" | awk '/Candidate:/ {print $2}')
 [[ -n "$candidate_driver" ]] || {
   echo "no authenticated $driver_pkg candidate found in branch $driver_branch" >&2
