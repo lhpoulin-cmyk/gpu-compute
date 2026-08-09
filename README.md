@@ -1,40 +1,44 @@
-# Helix-ARPA CUDA Compute Appliance
+# Helix-ARPA GPU Compute Appliance
 
-This repository is the source of truth for a reusable, dedicated NVIDIA GPU
-compute appliance. It contains policy, bootstrap logic, hardware profiles,
-operator commands, cloud-init examples, validation tests, evidence references,
-and reviewed Proxmox deployment tooling.
+This repository is the source of truth for a reusable GPU compute appliance on
+`hv-katra`. It contains policy, bootstrap logic, hardware profiles, operator
+commands, validation tests, evidence references, and reviewed Proxmox deployment
+tooling.
 
-The appliance has three deliberately separate layers:
+The appliance deliberately separates three things:
 
 ```text
-VM 320                 working hv-katra CUDA compute reference implementation
-this Git repository    authoritative reusable appliance source
-VM 9320                temporary clean generic Ubuntu template (90-day retention)
+VM 9320              hardware-neutral Ubuntu 24.04 template
+VM 320 root          disposable per-GPU software/driver instance
+VM 320 model disk    durable model/data volume shared across rebuilds
 ```
 
-VM 320 proves the contract and remains a normal production VM. It is never the
-clone source. VM 9320 contains no GPU, raw disk, instance identity, credentials,
-or model data. A private deployment profile assigns the real host, GPU resource
-mapping, Proxmox storage, network, and identity to a clone. Acceptance tests then
-promote that clone into an appliance.
+The template contains no GPU, vendor driver, CUDA, ROCm, model disk, production
+identity, or model data. A deployed clone selects one hardware profile and installs
+only the stack appropriate to the GPU actually attached.
 
-The hv-katra reference profile is pinned to Ubuntu 26.04, NVIDIA open kernel
-modules, CUDA toolkit 13.3, RTX 5070 Ti compute capability 12.0, Ollama 0.32.0,
-and llama.cpp ref `b10173` built for `sm_120`. Production GPU use is explicit
-through `/dev/nvidia0`; CPU fallback is rejected unless a future profile
-explicitly authorizes it. Vulkan is validated as an auxiliary compute path.
+Current target profiles are:
 
-Katra storage is intentionally isolated from its boot pool: the appliance uses
-the dedicated `cuda-katra` LVM-thin store on the approved 256 GiB allocation of
-the Sandisk Optimus 5100. VM 320 receives separate root and model/data virtual
-disks from that store; the host NVMe is not raw-passed into the guest.
+- NVIDIA GeForce RTX 5070 Ti — Blackwell, CUDA 13.3, `sm_120`, open kernel modules.
+- AMD Radeon RX 9070 XT — RDNA4, ROCm, `gfx1201`.
+- NVIDIA Quadro P6000 — Pascal, CUDA 12.9, `sm_61`, proprietary R580 driver branch.
+
+Ubuntu 24.04 is the common guest base for these profiles. GPU changes are normally
+performed by rebuilding the small root disk from VM 9320 and reattaching the durable
+160 GiB model/data virtual disk rather than converting an existing root filesystem
+between vendor driver stacks. See `docs/gpu-swap.md`.
+
+Katra storage remains isolated from its boot pool: the appliance uses the dedicated
+`cuda-katra` LVM-thin store on the approved 256 GiB allocation of the Sandisk Optimus
+5100. The host NVMe is not raw-passed into the guest.
+
+The current reference target remains VM 320 with the RTX 5070 Ti. Acceptance for any
+profile requires observed hardware identity, the intended GPU backend, a real compute
+workload, and proof that CPU fallback did not silently substitute for the GPU.
 
 Operator entry points are `bin/doctor`, `bin/probe`, `bin/run`,
-`bin/validate-output`, and `bin/collect-evidence`. Bootstrap begins with
-`bootstrap/install.sh --dry-run --profile config/profiles/nvidia-rtx5070ti/profile.yaml`.
-Host-side scripts under `proxmox/` render or perform only explicitly authorized
-Proxmox operations; they must not be executed from VM 320.
+`bin/validate-output`, and `bin/collect-evidence`. Host-side scripts under `proxmox/`
+run only under an explicitly authorized host play.
 
-Read `AGENTS.md`, `CODEX-HANDOFF.md`, `docs/appliance-contract.md`, and
-`docs/reference-implementation.md` before changing a deployed instance.
+Read `AGENTS.md`, `CODEX-HANDOFF.md`, `docs/appliance-contract.md`,
+`docs/template-build.md`, and `docs/gpu-swap.md` before deployment work.
