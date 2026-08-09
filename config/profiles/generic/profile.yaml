@@ -1,12 +1,12 @@
 profile:
   id: generic-template
-  version: 0.3.0
+  version: 0.4.0
   status: template-only
-  description: Hardware-neutral Ubuntu compute appliance template
+  description: Hardware-neutral Ubuntu 26.04 compute appliance template
 
 os:
   family: ubuntu
-  version: "24.04"
+  version: "26.04"
 
 stack:
   kind: none
