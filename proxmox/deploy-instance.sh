@@ -46,7 +46,6 @@ primary_gw=$(yaml_value "$profile" network primary_gateway)
 secondary_ip=$(yaml_value "$profile" network secondary_ipv4)
 dns_servers=$(yaml_value "$profile" network dns_servers)
 search_domain=$(yaml_value "$profile" network search_domain)
-mapping=$(yaml_value "$profile" gpu resource_mapping)
 hardware_profile=$(yaml_value "$profile" gpu profile)
 compute_fn=$(yaml_value "$profile" gpu host_compute_function)
 audio_fn=$(yaml_value "$profile" gpu host_audio_function)
@@ -62,7 +61,7 @@ models_mount=$(yaml_value "$profile" storage models_mount)
 required=(
   "$template" "$release" "$vmid" "$name" "$node" "$cores" "$memory" "$ciuser"
   "$primary_bridge" "$secondary_bridge" "$secondary_mtu" "$primary_ip" "$primary_gw"
-  "$secondary_ip" "$dns_servers" "$search_domain" "$mapping" "$hardware_profile"
+  "$secondary_ip" "$dns_servers" "$search_domain" "$hardware_profile"
   "$compute_fn" "$audio_fn" "$compute_id" "$audio_id" "$host_driver" "$storage"
   "$root_size" "$models_size" "$models_label" "$models_mount"
 )
@@ -76,8 +75,7 @@ done
   || { echo "unexpected instance/storage contract" >&2; exit 65; }
 [[ "$primary_bridge" == vmbr0 && "$secondary_bridge" == vmbr1 && "$secondary_mtu" == 9000 ]] \
   || { echo "unexpected bridge/MTU contract" >&2; exit 65; }
-[[ "$hardware_profile" == nvidia-rtx5070ti && "$mapping" == gpu-compute-rtx5070ti ]] \
-  || { echo "unexpected GPU profile/mapping contract" >&2; exit 65; }
+[[ "$hardware_profile" == nvidia-rtx5070ti ]] || { echo "unexpected GPU profile contract" >&2; exit 65; }
 [[ "$root_size" == 32 && "$models_size" == 160 ]] \
   || { echo "unexpected disk-size contract" >&2; exit 65; }
 
@@ -86,7 +84,7 @@ commands=(
   "$(shell_join qm set "$vmid" --cores "$cores" --memory "$memory" --net0 "virtio,bridge=$primary_bridge" --net1 "virtio,bridge=$secondary_bridge,mtu=$secondary_mtu")"
   "$(shell_join qm set "$vmid" --scsi1 "$storage:$models_size,discard=on,ssd=1,iothread=1")"
   "$(shell_join qm set "$vmid" --ciuser "$ciuser" --sshkeys "$ssh_public_key_file" --ciupgrade 0 --nameserver "$dns_servers" --searchdomain "$search_domain" --ipconfig0 "ip=$primary_ip,gw=$primary_gw" --ipconfig1 "ip=$secondary_ip")"
-  "$(shell_join "$script_dir/attach-resource-mapping.sh" --vmid "$vmid" --mapping "$mapping" --apply)"
+  "$(shell_join qm set "$vmid" --hostpci0 "$compute_fn,pcie=1,rombar=1")"
 )
 $no_start || commands+=("$(shell_join qm start "$vmid")")
 
@@ -127,12 +125,6 @@ done
 observed_secondary_mtu=$(cat "/sys/class/net/$secondary_bridge/mtu")
 (( observed_secondary_mtu >= secondary_mtu )) || { echo "$secondary_bridge MTU $observed_secondary_mtu is below $secondary_mtu" >&2; exit 69; }
 
-mapping_json=$(pvesh get /cluster/mapping/pci --output-format json)
-grep -Eq "\"id\"[[:space:]]*:[[:space:]]*\"$mapping\"" <<<"$mapping_json" \
-  || { echo "PCI mapping not found: $mapping" >&2; exit 69; }
-grep -Rqs "mapping=$mapping" /etc/pve/qemu-server \
-  && { echo "exclusive PCI mapping appears already assigned; inspect before deployment" >&2; exit 73; }
-
 lspci -nns "$compute_fn" | grep -Fq "$compute_id" || { echo "compute function identity mismatch: $compute_fn" >&2; exit 69; }
 lspci -nns "$audio_fn" | grep -Fq "$audio_id" || { echo "audio function identity mismatch: $audio_fn" >&2; exit 69; }
 lspci -ks "$compute_fn" | grep -Fq "Kernel driver in use: $host_driver" || { echo "compute function is not bound to $host_driver" >&2; exit 69; }
@@ -164,7 +156,7 @@ qm set "$vmid" \
   --searchdomain "$search_domain" \
   --ipconfig0 "ip=$primary_ip,gw=$primary_gw" \
   --ipconfig1 "ip=$secondary_ip"
-"$script_dir/attach-resource-mapping.sh" --vmid "$vmid" --mapping "$mapping" --apply
+qm set "$vmid" --hostpci0 "$compute_fn,pcie=1,rombar=1"
 
 config=$(qm config "$vmid")
 grep -Eq "^scsi0: ${storage}:.*size=${root_size}G" <<<"$config" || { echo "root disk is not the expected cuda-katra clone" >&2; exit 69; }
@@ -173,7 +165,7 @@ grep -Eq '^efidisk0: cuda-katra:' <<<"$config" || { echo "EFI disk is not on cud
 grep -Eq '^ide2: cuda-katra:.*cloudinit' <<<"$config" || { echo "cloud-init disk is not on cuda-katra" >&2; exit 69; }
 grep -Eq '^net0: .*bridge=vmbr0' <<<"$config" || { echo "vmbr0 NIC missing" >&2; exit 69; }
 grep -Eq '^net1: .*bridge=vmbr1.*mtu=9000' <<<"$config" || { echo "vmbr1 NIC/MTU missing" >&2; exit 69; }
-grep -Eq "^hostpci0: .*mapping=${mapping}" <<<"$config" || { echo "GPU mapping missing" >&2; exit 69; }
+grep -Eq "^hostpci0: .*01:00.0" <<<"$config" || { echo "direct GPU BDF missing" >&2; exit 69; }
 grep -Fq "ipconfig0: ip=$primary_ip,gw=$primary_gw" <<<"$config" || { echo "primary cloud-init network missing" >&2; exit 69; }
 grep -Fq "ipconfig1: ip=$secondary_ip" <<<"$config" || { echo "secondary cloud-init network missing" >&2; exit 69; }
 ! grep -Eq 'local-zfs:|^(scsi|ide|sata|efidisk)[0-9]*: local:' <<<"$config" \

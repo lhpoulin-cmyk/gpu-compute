@@ -35,7 +35,7 @@ assert d['network']['primary_gateway'] == '192.168.10.1'
 assert d['network']['secondary_ipv4'] == '192.168.100.92/24'
 assert d['network']['dns_servers'] == '192.168.10.250 192.168.10.251'
 assert d['network']['search_domain'] == 'home.arpa'
-assert d['gpu']['resource_mapping'] == 'gpu-compute-rtx5070ti'
+assert 'resource_mapping' not in d['gpu']
 assert d['gpu']['profile'] == 'nvidia-rtx5070ti'
 assert d['gpu']['host_compute_function'] == '0000:01:00.0'
 assert d['gpu']['host_audio_function'] == '0000:01:00.1'
@@ -48,7 +48,7 @@ PY
 grep -Fq -- '--ssh-public-key-file' "$deploy" || { echo "runtime SSH public-key input missing" >&2; exit 1; }
 grep -Fq -- '--ipconfig0' "$deploy" || { echo "standard Proxmox ipconfig0 missing" >&2; exit 1; }
 grep -Fq -- '--ipconfig1' "$deploy" || { echo "standard Proxmox ipconfig1 missing" >&2; exit 1; }
-grep -Fq 'attach-resource-mapping.sh' "$deploy" || { echo "logical GPU mapping attachment path missing" >&2; exit 1; }
+grep -Fq -- '--hostpci0' "$deploy" || { echo "direct GPU BDF attachment path missing" >&2; exit 1; }
 grep -Fq 'status: retired-example' "$example" || { echo "old example profile not retired" >&2; exit 1; }
 
 bash -n "$deploy"

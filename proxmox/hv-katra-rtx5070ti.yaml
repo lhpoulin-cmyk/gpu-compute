@@ -23,7 +23,6 @@ network:
   search_domain: home.arpa
 
 gpu:
-  resource_mapping: gpu-compute-rtx5070ti
   profile: nvidia-rtx5070ti
   host_compute_function: "0000:01:00.0"
   host_audio_function: "0000:01:00.1"
