@@ -1,11 +1,23 @@
-# Cloud-init examples
+# Cloud-init
 
-These examples show the structure of cloud-init files for VM 320. Real files
-contain actual credentials and live outside this repository.
+VM 320 uses standard Proxmox cloud-init fields. The deploy script configures:
 
-Do not commit populated user-data, vendor-data, or network-config files here.
+- `ciuser`
+- an operator SSH **public** key supplied at runtime
+- static `ipconfig0` / `ipconfig1`
+- DNS servers
+- search domain
+- `ciupgrade=0`
 
-The deploy script stages them to the Proxmox snippets storage and references
-them via `--cicustom`. After first boot, cloud-init runs once; subsequent
-boots skip it. Cloud-init does not install the NVIDIA driver or run the
-appliance bootstrap; those are explicit post-boot operator steps.
+No populated cloud-init snippet files are committed or staged for the reference
+hv-katra deployment. The runtime public-key file remains outside the repository.
+Private keys, passwords, tokens, and GitHub credentials are never accepted as
+cloud-init inputs.
+
+The YAML files in this directory are illustrative historical examples only. They
+are not inputs to `proxmox/deploy-instance.sh` and must not be treated as an
+authoritative deployment profile.
+
+Cloud-init establishes the first-boot identity and operator access only. It does
+not format the model disk, transfer the private repository source, install the GPU
+software stack, or run appliance acceptance. Those remain explicit post-boot gates.
