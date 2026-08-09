@@ -73,7 +73,7 @@ would:
   install the exact driver/toolkit meta-package versions
   install verified Ollama $ollama_version asset
   build llama.cpp $llama_ref at exact commit $llama_commit for sm_$llama_arch
-  enable (but not start) Ollama until the required reboot
+  install Ollama service but leave it disabled/stopped until post-reboot GPU verification
   record exact installed package versions
 EOF
   exit 0
@@ -190,7 +190,7 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable ollama.service >/dev/null
+systemctl disable ollama.service >/dev/null 2>&1 || true
 systemctl stop ollama.service >/dev/null 2>&1 || true
 
 build_root="/usr/local/src/llama.cpp-${llama_ref}"
@@ -221,8 +221,6 @@ printf '%s\n' "$llama_commit" > /usr/local/share/cuda-compute/llama-cpp-commit
 dpkg-query -W > /var/lib/cuda-compute/installed-package-versions.txt
 apt-mark showhold > /var/lib/cuda-compute/apt-holds.txt
 
-systemctl stop ollama.service >/dev/null 2>&1 || true
-
 echo "NVIDIA/CUDA userspace and applications installed"
-echo "Ollama is enabled but intentionally stopped until reboot activates the NVIDIA driver"
+echo "Ollama is intentionally disabled/stopped until post-reboot NVIDIA verification"
 echo "reboot required before GPU smoke/acceptance"
