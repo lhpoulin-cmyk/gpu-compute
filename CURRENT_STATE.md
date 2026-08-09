@@ -1,109 +1,95 @@
 # Current state
 
-## 2026-08-08 accepted host state
+## 2026-08-08 accepted host / VM state
 
-Phase 1 storage is **ACCEPTED**. Phase 2 VFIO/reboot validation is **ACCEPTED**.
-Phase 3 modern template construction is **ACCEPTED**.
+The following phases are complete and accepted:
 
-The dedicated `cuda-katra` LVM-thin store occupies exactly the approved 256 GiB
-partition on the Sandisk Optimus 5100; the remaining 675.5 GiB remains
-unpartitioned. The RTX 5070 Ti compute/audio functions remain persistently bound to
-`vfio-pci`, the upstream root port remains host-owned by `pcieport`, and both host
-bridges remain healthy (`vmbr1` MTU 9000).
+- Phase 1 storage: **ACCEPTED**
+- Phase 2 VFIO/reboot validation: **ACCEPTED**
+- Phase 3 Ubuntu 26.04 template construction: **ACCEPTED**
+- Phase 4 VM 320 construction/start: **ACCEPTED**
 
-## Phase 3 accepted result
+`cuda-katra` remains the dedicated LVM-thin store on the approved first 256 GiB of
+the Sandisk Optimus 5100. The remaining ~675.5 GiB remains unpartitioned. Both host
+bridges remain healthy and `vmbr1` remains MTU 9000.
 
-VM 9320 exists as the modern unbooted hardware-neutral Ubuntu 26.04 template:
+## Accepted template VM 9320
 
-- VMID: 9320
-- name: `tpl-compute-ubuntu2604-20260808`
-- Canonical cloud-image release serial: `20260612`
-- verified image SHA-256: `0c9fb915bab0b36b361d3bf8aeae2115dda19d81a306656964de048033481670`
-- q35 + OVMF
-- 8 vCPU / 16 GiB RAM
-- `scsi0`: `cuda-katra:base-9320-disk-0`, 32 GiB
-- EFI disk: `cuda-katra`
-- cloud-init disk: `cuda-katra`
-- one NIC on `vmbr0`
-- `template: 1`
-- no GPU assignment
-- no model/data disk
-- no `vmbr1`
-- no VM disk on `local` or `local-zfs`
-- no raw NVMe assignment
-- never booted before template conversion
+VM 9320 is `tpl-compute-ubuntu2604-20260808`, an unbooted-before-conversion Ubuntu
+26.04 Canonical cloud-image template. Its 32 GiB root, EFI disk, and cloud-init disk
+are all on `cuda-katra`. It has one `vmbr0` NIC and no GPU, model disk, `vmbr1`,
+local/local-zfs VM disk, or raw NVMe assignment.
 
-The initial execution session disconnected while Proxmox was creating/importing the
-thin LV. The underlying process continued normally. The journal later showed scsi0
-attachment, resize, EFI/cloud-init creation, and successful `qm template 9320`
-completion at 23:21:53. No retry, process termination, cleanup, or repair was required.
+The accepted source image is Canonical release serial `20260612`, SHA-256
+`0c9fb915bab0b36b361d3bf8aeae2115dda19d81a306656964de048033481670`.
 
-Post-construction LVM state was healthy: `base-9320-disk-0` exists as a 32 GiB thin LV,
-`cuda-katra-thin` was Data% 0.86 / Meta% 10.64, monitoring was enabled, and no kernel
-I/O or NVMe errors were observed.
+## Accepted reference VM construction
 
-## Construction doctrine
+VM 320 now exists and is running as `cuda-compute-katra`:
 
-The earlier Phase 3A full transitive-package closure experiment remains historical
-evidence only and is not a deployment prerequisite.
+- full clone of VM 9320;
+- 8 vCPU / 16384 MiB RAM;
+- 32 GiB root, EFI, cloud-init, and 160 GiB `scsi1` all on `cuda-katra`;
+- no VM disk on `local` or `local-zfs`;
+- `vmbr0`: `192.168.10.92/24`, gateway `192.168.10.1`;
+- `vmbr1`: `192.168.100.92/24`, MTU 9000, no gateway;
+- DNS `192.168.10.250 192.168.10.251`, search domain `home.arpa`;
+- direct PCI passthrough of host function `0000:01:00.0` as `hostpci0`;
+- host compute function identity `10de:2c05` and companion audio `10de:22e9` were
+  verified under `vfio-pci` before deployment.
 
-VM 9320 is intentionally just a reusable OS image. It contains no `cuda-compute`
-checkout, BUILD record, vendor GPU driver/toolkit, Ollama, llama.cpp build, model disk,
-production identity, or runtime evidence. There is no template guest bootstrap or
-sanitation step.
+A Proxmox logical PCI mapping is intentionally **not** required for this fixed
+single-host reference implementation. Direct BDF passthrough is guarded by exact PCI
+identity and host-driver preflight.
 
-For deployed guests use the proven appliance pattern: trusted OS/vendor sources,
-bounded package simulation, refusal of dangerous removals, high-value top-level pins,
-recorded installed versions, and live hardware acceptance.
+## Guest construction implementation
 
-## Phase 4 preparation status
+The current branch now contains the previously missing executable RTX 5070 Ti guest
+stack:
 
-The repository deployment surface for the RTX 5070 Ti reference VM is now implemented.
+- `bootstrap/prepare-model-disk.sh` — identifies exactly one unambiguous ~160 GiB
+  non-root blank disk, refuses existing signatures/partitions/mounts, formats ext4
+  `LABEL=cuda-models`, and mounts `/mnt/models`;
+- `bootstrap/stack-nvidia-modern.sh` — Ubuntu 26.04 NVIDIA network-repository setup,
+  bounded APT simulation, branch-610 open driver, CUDA 13.3, verified Ollama 0.32.0,
+  and pinned llama.cpp `b10173` build for `sm_120`;
+- `bootstrap/packages.sh` — dispatches the modern NVIDIA stack and keeps AMD/Pascal
+  non-executable on this instance;
+- `bootstrap/install-profile.sh` — installs instance profile/kernel/service state
+  without duplicating driver package installation;
+- `bootstrap/install.sh` — completes installation but explicitly defers GPU acceptance
+  until after reboot;
+- `tests/unit/nvidia-modern-contract.sh` — regression contract for the guest stack.
 
-Authoritative inputs:
+The NVIDIA Ubuntu 26.04 repository currently exposes branch-610 `nvidia-open`
+`610.43.02-1ubuntu1`, so the profile uses that available version and keeps acceptance
+minimum `610.43.02`. CUDA toolkit remains `cuda-toolkit-13-3=13.3.1-1`.
 
-- `proxmox/hv-katra-rtx5070ti.yaml` — concrete non-secret VM 320 deployment profile;
-- `proxmox/deploy-instance.sh` — standard Proxmox cloud-init deployment path;
-- `tests/unit/deployment-contract.sh` — regression contract for the VM 320 profile;
-- `docs/deployment.md` — operator deployment and first-boot boundary.
+## Next executable boundary — finish VM 320 guest construction
 
-The old `proxmox/example-profile.yaml` is retired example material. The deployment no
-longer depends on committed custom cloud-init snippets, Ubuntu ISO fields, repository
-placeholders, or private deployment files. Operator SSH access is supplied at runtime
-using an external SSH public-key file.
+No CUDA/NVIDIA guest packages have yet been installed and the 160 GiB model disk is
+still unformatted.
 
-## GPU families
+The next play should:
 
-The modern Ubuntu 26.04 template is intended for:
+1. verify first-boot Ubuntu 26.04, both static addresses, SSH access, and raw RTX PCI
+   visibility inside VM 320;
+2. record Secure Boot state before DKMS installation;
+3. run `bootstrap/prepare-model-disk.sh --dry-run`, review the one detected ~160 GiB
+   disk, then apply it;
+4. transfer the current repository snapshot from hv-katra into `/srv/cuda-compute`
+   without GitHub credentials;
+5. run the RTX profile bootstrap dry-run;
+6. apply the bounded NVIDIA/CUDA/Ollama/llama.cpp installation;
+7. reboot VM 320;
+8. run smoke and hardware acceptance after the reboot;
+9. finalize instance state only after acceptance passes.
 
-- RTX 5070 Ti: Blackwell, CUDA 13.3, `sm_120`, NVIDIA open kernel modules.
-- RX 9070 XT: RDNA4, ROCm 7.14, `gfx1201` (design-stage until locally tested).
-- a future Arc Pro B70 profile may reuse this template when a B70 is local; no B70 work is in the current critical path.
+The earlier full transitive-package closure experiment remains historical evidence and
+is not a deployment prerequisite.
 
-The Quadro P6000 remains legacy compatibility only. Its Pascal CUDA 12.9 / R580
-profile requires a separate Ubuntu 24.04 disposable root/template when actually
-tested.
+## Other GPU families
 
-## Next executable boundary — create reference VM 320
-
-The next phase is the live deployment of VM 320 on `hv-katra` with the RTX 5070 Ti:
-
-- VMID: 320
-- hostname/name: `cuda-compute-katra`
-- 8 vCPU / 16 GiB RAM
-- full clone from VM 9320, root remaining on `cuda-katra`
-- model/data disk: 160 GiB on `cuda-katra`, future label `cuda-models`, future mount `/mnt/models`
-- `192.168.10.92/24` on `vmbr0`, gateway `192.168.10.1`
-- `192.168.100.92/24` on `vmbr1`, MTU 9000, no gateway
-- DNS: `192.168.10.250`, `192.168.10.251`
-- search domain: `home.arpa`
-- logical GPU mapping: `gpu-compute-rtx5070ti`
-
-Before mutation, run the repository regression tests and a complete deployment
-dry-run with an operator-owned SSH public-key file. The live deployment may then clone,
-configure, attach the logical GPU mapping, and start VM 320. Formatting the model disk,
-transferring repository source, installing CUDA/NVIDIA software, and acceptance remain
-separate post-boot gates.
-
-Acceptance—not cloning or driver installation—promotes VM 320 into the reference
-appliance.
+- RX 9070 XT: Ubuntu 26.04 / ROCm 7.14 / `gfx1201`; design-stage until local testing.
+- future Arc Pro B70: may use the Ubuntu 26.04 modern template when a B70 is local.
+- Quadro P6000: legacy Ubuntu 24.04 disposable root/template only when actually tested.
