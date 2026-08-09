@@ -1,12 +1,12 @@
 profile:
   id: amd-rx9070xt
-  version: 0.1.0
-  status: not-yet-accepted
-  description: AMD Radeon RX 9070 XT RDNA4 compute profile for swap testing
+  version: 0.2.0
+  status: design-only
+  description: AMD Radeon RX 9070 XT RDNA4 compute profile for later swap testing
 
 os:
   family: ubuntu
-  version: "24.04"
+  version: "26.04"
 
 stack:
   kind: amd-rocm
@@ -19,7 +19,7 @@ device:
   vram_gib: 16
 
 rocm:
-  release_family: "7"
+  version: "7.14.0"
   required_target: gfx1201
 
 compute:
