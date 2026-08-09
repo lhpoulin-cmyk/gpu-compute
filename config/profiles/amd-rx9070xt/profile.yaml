@@ -1,0 +1,49 @@
+profile:
+  id: amd-rx9070xt
+  version: 0.1.0
+  status: not-yet-accepted
+  description: AMD Radeon RX 9070 XT RDNA4 compute profile for swap testing
+
+os:
+  family: ubuntu
+  version: "24.04"
+
+stack:
+  kind: amd-rocm
+
+device:
+  expected_vendor: AMD
+  expected_model: Radeon RX 9070 XT
+  expected_kernel_driver: amdgpu
+  llvm_target: gfx1201
+  vram_gib: 16
+
+rocm:
+  release_family: "7"
+  required_target: gfx1201
+
+compute:
+  production:
+    - llama-cpp
+  optional:
+    - ollama
+    - vulkan-compute
+  fallback_policy: reject
+
+llama_cpp:
+  ref: b10173
+  commit: e9fa0781f1c25fc4fe8c86be1edc6970661ad6f0
+  repository: https://github.com/ggml-org/llama.cpp.git
+  hip_architectures: gfx1201
+  install_prefix: /usr/local
+
+storage:
+  models_mount: /mnt/models
+  models_source: deployment-required
+  min_free_gib: 20
+  min_free_percent: 20
+
+required_tests:
+  - smoke/appliance
+  - smoke/rocm-amd
+  - acceptance/appliance
