@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-08 Phase 3 construction simplification
+
+- Replace the stale manual ISO/install/bootstrap/sanitize template flow with a direct, unbooted Canonical Ubuntu 26.04 cloud-image import to `cuda-katra`.
+- Define concrete VM 9320 profile `tpl-compute-ubuntu2604-20260808`, 32 GiB root, q35/OVMF, `vmbr0` only, no GPU/model disk/vendor stack.
+- Reuse the previously accepted Canonical release `20260612` image identity and require local SHA-256 verification before import.
+- Move the RTX 5070 Ti modern profile to Ubuntu 26.04 / `ubuntu2604` while retaining CUDA 13.3 and the accepted high-value pins.
+- Move the RX 9070 XT design profile to Ubuntu 26.04 / ROCm 7.14 / `gfx1201`.
+- Mark the Quadro P6000 as legacy compatibility requiring a separate Ubuntu 24.04 disposable root/template when actually tested.
+- Retire guest bootstrap and sanitation as VM 9320 construction requirements; GPU-specific software begins only on the deployed clone.
+- Keep the abandoned Phase 3A transitive-package closure work as historical evidence rather than a deployment gate.
+
 ## 2026-08-08 Phase 3A construction checkpoint
 
 - Record Phase 1 and Phase 2 as accepted; Phase 3 remains not started.
@@ -27,14 +38,12 @@
 - Add dual-NIC VM 320 contract: `192.168.10.92/24` on `vmbr0` and `192.168.100.92/24` on `vmbr1` with MTU 9000.
 - Correct RTX 5070 Ti identity to `10de:2c05` plus companion audio `10de:22e9`, compute capability 12.0, with both functions included in VFIO group handling.
 - Pin Ubuntu 26.04 / CUDA 13.3 / `nvidia-open`, Ollama 0.32.0, and llama.cpp `b10173` built for `sm_120`.
-- Preserve `BUILD` across template sanitation, make instance finalization write durable state, and strengthen GPU-only acceptance with compiled CUDA execution and inference processor proof.
+- Preserve `BUILD` across the earlier booted-template design, make instance finalization write durable state, and strengthen GPU-only acceptance with compiled CUDA execution and inference processor proof.
 - Replace unreliable inference of the llama.cpp source tag from binary version output with a durable installed-ref marker.
-
 
 ## development (unreleased)
 
 - Reworked hv-katra storage: 256 GiB SN5100 allocation becomes dedicated Proxmox LVM-thin storage `cuda-katra`; VM 9320 and VM 320 root disks plus VM 320 model disk live there. Raw NVMe passthrough removed. VM 9320 retention set to 90 days.
-
 - Initial repository structure modeled after Helix-ARPA GPU encode appliance.
 - NVIDIA RTX 5070 Ti hardware profile for hv-katra deployment.
 - Proxmox tooling for VM 320 creation from template VM 9320.
