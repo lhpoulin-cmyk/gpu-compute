@@ -23,6 +23,20 @@
 - Finalize VM 320 with acceptance SHA-256
   `abd996dfba91947d2be699de46ed34cce00976929c8b5cb0b485375925fa6271`.
 
+## 2026-08-09 ws-doc-writer multi-model workload telemetry
+
+- Validate the repaired telemetry collector with a clean 10-second preflight.
+- Capture a 300-second closed-case Katra session while ws-doc-writer v2 run
+  `benchmark-v2-katra-20260809T182340Z` completed its frozen three-model,
+  ten-case workload (30/30 outputs).
+- Record the representative GPU thermal/power/clock/VRAM, host CPU/PCH/NVMe
+  temperature evidence under
+  `evidence/telemetry/20260809T182323Z-ws-doc-writer-3model-closed/`.
+- Preserve ws-doc-writer raw benchmark records in their owning runtime; do not
+  duplicate them in cuda-compute.
+- Record the remaining observability limits honestly: no host CPU utilization
+  samples and no PCIe load-link capture in this collection.
+
 ## 2026-08-08 Phase 4 accepted / guest stack implemented
 
 - Accept VM 320 running as `cuda-compute-katra`, full-cloned from VM 9320 with all VM disks on `cuda-katra`, dual static NICs, and direct passthrough of `0000:01:00.0`.

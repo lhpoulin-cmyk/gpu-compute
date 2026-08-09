@@ -69,6 +69,28 @@ DKMS-built module.  `tests/smoke/cuda-nvidia` passed, including a compiled
 inferences.  Acceptance record SHA-256:
 `abd996dfba91947d2be699de46ed34cce00976929c8b5cb0b485375925fa6271`.
 
+## 2026-08-09 ws-doc-writer representative multi-model workload
+
+The repaired case telemetry collector completed a 300-second closed-case capture
+while ws-doc-writer v2 ran its frozen three-model, ten-case workload through
+the Katra loopback Ollama backend.  The external benchmark run
+`benchmark-v2-katra-20260809T182340Z` completed 30/30 outputs with the fixed
+8192 context, temperature 0.2, top-p 0.9, seed 42, non-streaming, thinking-off
+contract.  Raw benchmark outputs remain owned by ws-doc-writer and are not in
+this repository.
+
+Katra telemetry evidence is
+`evidence/telemetry/20260809T182323Z-ws-doc-writer-3model-closed/`.  It shows
+GPU temperature 37.0/47.4/68.0 C, board power 17.4/82.1/289.1 W, GPU
+utilization 0.0/21.5/97.0%, graphics clock 172/1277/2872 MHz, and VRAM
+2 MiB/8123 MiB/10268 MiB (min/avg/max).  CPU package was 36.0/45.4/60.0 C;
+PCH 51.0/53.3/56.0 C; NVMe composite 31.9/36.9/39.9 C.  No thermal slowdown
+or active power cap was reported after the run.  The collector does not sample
+host CPU utilization, and the privileged PCIe query was made after load, so
+the observed x16 / 2.5 GT/s link is idle-only and is not proof of load-link
+speed.  No CPU fallback was observed: Ollama `/api/ps` recorded full VRAM
+residency for every selected model.
+
 ## Next executable boundary
 
 VM 320 is finalized as the RTX 5070 Ti reference appliance.  Do not redo
