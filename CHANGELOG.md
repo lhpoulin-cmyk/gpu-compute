@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-09 telemetry preflight reliability
+
+- Fix `telemetry/capture-case-session.sh` VM-state preflight to avoid a `pipefail`/`grep -q` broken-pipe failure before telemetry evidence creation.
+- Preserve the existing bounded host/GPU telemetry behavior; no case, fan, GPU, VM, or workload configuration changes are implied by this fix.
+
 ## 2026-08-09 RTX 5070 Ti reference appliance accepted
 
 - Grow VM 320 `scsi0` from the 32 GiB neutral-template clone to its 64 GiB
@@ -40,7 +45,7 @@
 
 ## 2026-08-08 Phase 3 accepted
 
-- Accept VM 9320 as `tpl-compute-ubuntu2604-20260808`, an unbooted Ubuntu 26.04 cloud-image template on `cuda-katra`.
+- Accept VM 9320 as `tpl-compute-ubuntu2604-20260808`, an unbooted Ubuntu 26.04 Canonical cloud-image template on `cuda-katra`.
 - Verify Canonical cloud-image release serial `20260612` with SHA-256 `0c9fb915bab0b36b361d3bf8aeae2115dda19d81a306656964de048033481670` before import.
 - Record final template shape: 32 GiB `scsi0` plus EFI/cloud-init disks on `cuda-katra`, one `vmbr0` NIC, no GPU/model disk/vmbr1/local/local-zfs/raw-NVMe assignment.
 - Record that the apparent `lvcreate` stall was only a disconnected execution session: Proxmox continued, completed disk import/resize/EFI/cloud-init configuration, and converted VM 9320 to a template at 23:21:53 without retry or repair.
