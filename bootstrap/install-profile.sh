@@ -57,10 +57,11 @@ options nouveau modeset=0
 EOF
   update-initramfs -u
   if systemctl list-unit-files ollama.service >/dev/null 2>&1; then
-    systemctl enable ollama.service >/dev/null
+    systemctl disable ollama.service >/dev/null 2>&1 || true
     systemctl stop ollama.service >/dev/null 2>&1 || true
   fi
 fi
 
 echo "active hardware profile installed: $profile_id"
+echo "Ollama remains disabled until post-reboot GPU verification"
 echo "reboot required before hardware acceptance"
