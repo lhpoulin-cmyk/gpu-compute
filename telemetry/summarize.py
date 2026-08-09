@@ -10,6 +10,7 @@ if len(sys.argv) != 2:
 
 root = Path(sys.argv[1])
 host_file = root / "host-temps.tsv"
+fan_file = root / "host-fans.tsv"
 gpu_file = root / "gpu.csv"
 
 
@@ -61,6 +62,16 @@ for key in sorted(all_host):
     values = nums(all_host[key])
     if values:
         print(statline(f"host sensor {key}", values, " C"))
+
+host_fans = {}
+if fan_file.exists():
+    with fan_file.open(newline="") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            key = f"{row.get('chip', '')}/{row.get('label', '')}"
+            host_fans.setdefault(key, []).append(row.get("rpm"))
+for key in sorted(host_fans):
+    print(statline(f"host fan {key}", host_fans[key], " RPM"))
 
 gpu_rows = []
 if gpu_file.exists():
