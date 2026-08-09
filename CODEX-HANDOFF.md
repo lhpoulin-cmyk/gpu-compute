@@ -27,7 +27,7 @@ SOPS + age. The documented recipient fingerprint is
 
 ## RTX 5070 Ti software contract
 
-Use `config/profiles/nvidia-rtx5070ti/profile.yaml`:
+Use `profiles/nvidia-rtx5070ti/profile.yaml`:
 
 - Ubuntu 26.04
 - NVIDIA repository `ubuntu2604`

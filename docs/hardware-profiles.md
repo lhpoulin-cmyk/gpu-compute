@@ -6,7 +6,7 @@ facts such as Proxmox node, bridges, resource mappings, storage and identity.
 
 ## nvidia-rtx5070ti
 
-`config/profiles/nvidia-rtx5070ti/profile.yaml`
+`profiles/nvidia-rtx5070ti/profile.yaml`
 
 - GPU: NVIDIA GeForce RTX 5070 Ti (GB203 Blackwell)
 - Compute-function PCI ID: `10de:2c05`
@@ -25,7 +25,7 @@ values are expectations, not evidence.
 
 ## generic
 
-`config/profiles/generic/profile.yaml` is a placeholder for future NVIDIA
+`profiles/generic/profile.yaml` is a placeholder for future NVIDIA
 profiles. Deployment-required fields must be supplied before use.
 
 ## Adding a profile

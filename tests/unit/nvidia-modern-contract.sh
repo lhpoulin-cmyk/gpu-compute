@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-profile="$root/config/profiles/nvidia-rtx5070ti/profile.yaml"
+profile="$root/profiles/nvidia-rtx5070ti/profile.yaml"
 stack="$root/bootstrap/stack-nvidia-modern.sh"
 packages="$root/bootstrap/packages.sh"
 install="$root/bootstrap/install.sh"
@@ -42,6 +42,8 @@ grep -Fq 'apt-get -s install' "$stack"
 grep -Fq "grep -Eq '^Remv '" "$stack"
 grep -Fq 'nvidia-driver-pinning-' "$stack"
 grep -Fq 'selected-nvidia-driver-version.txt' "$stack"
+grep -Fq 'package-candidate-origin.txt' "$stack"
+grep -Fq 'installed-driver-cuda-versions.txt' "$stack"
 grep -Fq 'tar --zstd' "$stack"
 grep -Fq 'CMAKE_CUDA_ARCHITECTURES' "$stack"
 grep -Fq 'systemctl disable ollama.service' "$stack"

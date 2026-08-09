@@ -54,9 +54,11 @@ mkdir -p "$out"
   echo "repository_head=$(git -C "$root" rev-parse HEAD 2>/dev/null || echo unknown)"
 } > "$out/session.env"
 
-qm config "$vmid" > "$out/qm-config.txt"
-uname -a > "$out/host-uname.txt"
-ssh "$guest" 'uname -a; echo; nvidia-smi -q -d TEMPERATURE,POWER,PERFORMANCE,CLOCK,UTILIZATION' > "$out/gpu-before.txt"
+{
+  echo '# host'; uname -a
+  echo '# qm-config'; qm config "$vmid"
+  echo '# accelerator'; ssh "$guest" 'uname -a; echo; nvidia-smi -q -d TEMPERATURE,POWER,PERFORMANCE,CLOCK,UTILIZATION'
+} > "$out/before.txt"
 
 host_tsv="$out/host-temps.tsv"
 printf 'epoch_ms\tiso8601\thwmon\tchip\tlabel\ttemp_c\n' > "$host_tsv"
@@ -156,7 +158,15 @@ wait "$cpu_pid"
 wait "$gpu_pid"
 trap - INT TERM EXIT
 
-ssh "$guest" 'nvidia-smi -q -d TEMPERATURE,POWER,PERFORMANCE,CLOCK,UTILIZATION' > "$out/gpu-after.txt"
+{
+  echo '# host'; uname -a
+  echo '# qm-config'; qm config "$vmid"
+  echo '# accelerator'; ssh "$guest" 'nvidia-smi -q -d TEMPERATURE,POWER,PERFORMANCE,CLOCK,UTILIZATION'
+} > "$out/after.txt"
 python3 "$root/telemetry/summarize.py" "$out" | tee "$out/summary.txt"
+(
+  cd "$out"
+  sha256sum session.env before.txt after.txt host-*.tsv gpu.csv summary.txt > SHA256SUMS
+)
 
 echo "telemetry session complete: $out"

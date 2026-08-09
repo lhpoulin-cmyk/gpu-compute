@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-09 gpu-compute convergence
+
+- Establish gpu-compute as the vendor-agnostic appliance authority while
+  preserving cuda-compute as the historical NVIDIA/CUDA implementation and
+  retaining all deployed/evidence identifiers.
+- Move active hardware profiles from `config/profiles/` to `profiles/` for
+  sibling navigation parity with gpu-encode; RTX 5070 Ti remains accepted,
+  RX 9070 XT design-only, and P6000 legacy-design-only.
+- Document `/mnt/models` and `LABEL=cuda-models` as a backing-store-independent
+  durable contract; `cuda-katra` remains unchanged and no Ceph migration began.
+- Align telemetry session artifacts with the sibling bounded-session grammar,
+  including `before.txt`, `after.txt`, and `SHA256SUMS`, while preserving the
+  pipefail-safe VM preflight and CPU/PCIe collection.
+- Record accepted CPU/PCIe platform closure and external Alpha Trial workload
+  evidence without importing ws-doc-writer application data.
+
 ## 2026-08-09 telemetry preflight reliability
 
 - Fix `telemetry/capture-case-session.sh` VM-state preflight to avoid a `pipefail`/`grep -q` broken-pipe failure before telemetry evidence creation.

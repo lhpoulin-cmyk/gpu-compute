@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 profile="$root/config/active-hardware-profile.yaml"
-[[ -r "$profile" ]] || profile="$root/config/profiles/nvidia-rtx5070ti/profile.yaml"
+[[ -r "$profile" ]] || profile="$root/profiles/nvidia-rtx5070ti/profile.yaml"
 
 pyval() {
   local expr=$1

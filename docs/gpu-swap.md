@@ -52,9 +52,9 @@ benchmark results cleaner.
 
 ## Current profiles
 
-- `config/profiles/nvidia-rtx5070ti/profile.yaml` — immediate reference deployment.
-- `config/profiles/amd-rx9070xt/profile.yaml` — modern design-stage profile.
-- `config/profiles/nvidia-p6000/profile.yaml` — legacy design-stage profile requiring Ubuntu 24.04.
+- `profiles/nvidia-rtx5070ti/profile.yaml` — immediate reference deployment.
+- `profiles/amd-rx9070xt/profile.yaml` — modern design-stage profile.
+- `profiles/nvidia-p6000/profile.yaml` — legacy design-stage profile requiring Ubuntu 24.04.
 
 ## Acceptance principle
 

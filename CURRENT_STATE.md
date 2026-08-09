@@ -1,5 +1,43 @@
 # Current state
 
+## gpu-compute convergence
+
+The active repository/appliance authority is **gpu-compute**. `cuda-compute`
+was the original NVIDIA/CUDA implementation that established this first
+accepted appliance; historical names, evidence paths, `cuda-katra`, and guest
+hostname `cuda-compute-katra` remain valid provenance.
+
+VM 9320 remains the accepted hardware-neutral Ubuntu 26.04 template and VM
+320 remains the accepted RTX 5070 Ti appliance. The durable guest contract is
+`/mnt/models` with `LABEL=cuda-models`, independent of the current
+`cuda-katra` LVM-thin backing implementation. No storage migration is in
+scope; a future Ceph RBD move is storage acceptance work, not application
+redesign.
+
+Platform observability is complete. The accepted active-workload closure at
+`evidence/telemetry/20260809T184656Z-mistral-platform-closure/` recorded host
+CPU busy 1.0/12.7/18.1%, loaded PCIe Gen3 x16 at 8.0 GT/s for 95/95 samples,
+GPU utilization to 90%, power to 275.9 W, and GPU temperature to 70 C. CPU
+starvation, PCIe starvation, thermal limitation, and CPU fallback were not
+observed.
+
+Katra also successfully served ws-doc-writer's external Alpha Trial
+`trial-82224bc860c770d5` through frozen Qwen3, Gemma3, and Mistral Nemo
+models. Its source, setup, attempts, prose, reviews, and SQLite state remain
+ws-doc-writer authority; gpu-compute records this only as real application
+workload evidence with GPU residency and no CPU fallback.
+
+External application dependencies are ws-doc-writer
+`dfb759afb7826a2b849fa95bf40ce6f06cd3cd05` (JSON-mode adapter compatibility,
+local schema validation, and setup carry-forward) and ws-cp/infrastructure
+`6dc02542cc1f7780d93bf12c492ad2c2d94a00d3` (Katra backend environment path).
+They are recorded dependencies, not code imported into this repository.
+
+Alpha bookkeeping is delegated to ws-doc-writer: the +7 attempt delta consists
+of three grammar failures, three successful retries, and preserved
+`generation-90902677ed740c58`, a Qwen response-schema-invalid attempt between
+the grammar failure and successful retry. No application state was modified.
+
 ## Accepted host / VM state
 
 Accepted:

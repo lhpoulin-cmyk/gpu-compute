@@ -137,6 +137,7 @@ dpkg --compare-versions "$candidate_driver" ge "$min_driver" || {
 
 echo "selected NVIDIA driver: $driver_pkg=$candidate_driver"
 printf '%s\n' "$candidate_driver" > /var/lib/cuda-compute/selected-nvidia-driver-version.txt
+apt-cache policy "$driver_pkg" "$cuda_pkg" > /var/lib/cuda-compute/package-candidate-origin.txt
 
 simulation=/var/lib/cuda-compute/nvidia-apt-simulation.txt
 apt-get -s install --no-install-recommends \
@@ -234,6 +235,7 @@ printf '%s\n' "$llama_ref" > /usr/local/share/cuda-compute/llama-cpp-ref
 printf '%s\n' "$llama_commit" > /usr/local/share/cuda-compute/llama-cpp-commit
 
 dpkg-query -W > /var/lib/cuda-compute/installed-package-versions.txt
+dpkg-query -W "$driver_pkg" "$cuda_pkg" > /var/lib/cuda-compute/installed-driver-cuda-versions.txt
 apt-mark showhold > /var/lib/cuda-compute/apt-holds.txt
 
 echo "NVIDIA/CUDA userspace and applications installed"

@@ -23,10 +23,17 @@ grep -Fq '/proc/stat' "$capture"
 grep -Fq 'current_link_speed' "$capture"
 grep -Fq 'current_link_width' "$capture"
 grep -Fq 'evidence/telemetry/' "$capture"
+grep -Fq 'before.txt' "$capture"
+grep -Fq 'after.txt' "$capture"
+grep -Fq 'SHA256SUMS' "$capture"
 grep -Fq 'CPU package' "$summary"
 grep -Fq 'Host CPU busy' "$summary"
 grep -Fq 'GPU temp' "$summary"
 grep -Fq 'PCIe loaded-link samples' "$summary"
+if grep -Fq 'qm status "$vmid" | grep -q' "$capture"; then
+  echo "pipefail-unsafe qm preflight regressed" >&2
+  exit 1
+fi
 grep -Fiq 'raw telemetry' "$doc"
 
 echo "telemetry-contract: PASS"

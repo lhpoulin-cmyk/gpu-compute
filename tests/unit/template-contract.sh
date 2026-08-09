@@ -3,10 +3,10 @@ set -Eeuo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 profile="$root/proxmox/hv-katra-template.yaml"
-generic="$root/config/profiles/generic/profile.yaml"
-rtx="$root/config/profiles/nvidia-rtx5070ti/profile.yaml"
-rx="$root/config/profiles/amd-rx9070xt/profile.yaml"
-p6000="$root/config/profiles/nvidia-p6000/profile.yaml"
+generic="$root/profiles/generic/profile.yaml"
+rtx="$root/profiles/nvidia-rtx5070ti/profile.yaml"
+rx="$root/profiles/amd-rx9070xt/profile.yaml"
+p6000="$root/profiles/nvidia-p6000/profile.yaml"
 builder="$root/proxmox/create-template.sh"
 doc="$root/docs/template-build.md"
 
@@ -38,6 +38,11 @@ check_grep 'builder converts directly to template' 'qm template' "$builder"
 check_absent 'builder has no ISO/manual installer path' 'ubuntu_iso|media=cdrom|live-server-amd64\.iso' "$builder"
 check_absent 'template docs require no bootstrap' 'bootstrap/install\.sh.*template-mode' "$doc"
 check_absent 'template docs require no sanitation' 'sanitize-template\.sh' "$doc"
+if git -C "$root" grep -n 'config/profiles' -- ':!CHANGELOG.md' ':!tests/unit/template-contract.sh' >/dev/null; then
+  fail 'active profile layout has no config/profiles references'
+else
+  pass 'active profile layout has no config/profiles references'
+fi
 
 [[ "$failures" -eq 0 ]] || { echo "template-contract: $failures failure(s)" >&2; exit 1; }
 echo 'template-contract: PASS'

@@ -1,13 +1,16 @@
-# AGENTS.md — Helix-ARPA CUDA Compute Appliance
+# AGENTS.md — Helix-ARPA gpu-compute Appliance
 
 ## Identity and mission
 
-This machine is a dedicated NVIDIA GPU compute appliance. It is not a
+This machine is a vendor-agnostic GPU compute appliance; the accepted first
+implementation is NVIDIA/CUDA. It is not a
 general-purpose desktop, container host, media server, or unrelated application
 server. Its mission is reproducible AI model inference, CUDA workload execution,
 GPU capability validation, and pipeline automation for LLM and compute tasks.
 
-Priorities are correctness, model integrity, reproducibility, evidence,
+`cuda-compute` was the original NVIDIA/CUDA implementation that established
+this appliance. Historical CUDA names remain provenance; active authority is
+gpu-compute. Priorities are correctness, model integrity, reproducibility, evidence,
 operational reliability, then throughput. Throughput never overrides correctness
 or model integrity.
 

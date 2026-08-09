@@ -49,11 +49,11 @@ Then run the RTX 5070 Ti bootstrap:
 
 ```bash
 sudo /srv/cuda-compute/bootstrap/install.sh \
-  --profile /srv/cuda-compute/config/profiles/nvidia-rtx5070ti/profile.yaml \
+  --profile /srv/cuda-compute/profiles/nvidia-rtx5070ti/profile.yaml \
   --operator louis --dry-run
 
 sudo /srv/cuda-compute/bootstrap/install.sh \
-  --profile /srv/cuda-compute/config/profiles/nvidia-rtx5070ti/profile.yaml \
+  --profile /srv/cuda-compute/profiles/nvidia-rtx5070ti/profile.yaml \
   --operator louis
 ```
 

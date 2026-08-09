@@ -1,8 +1,12 @@
-# Helix-ARPA GPU Compute Appliance
+# Helix-ARPA gpu-compute Appliance
 
 This repository is the source of truth for a reusable GPU compute appliance on
 `hv-katra`. It contains policy, bootstrap logic, hardware profiles, operator commands,
 validation tests, evidence references, and reviewed Proxmox deployment tooling.
+
+`cuda-compute` was the original NVIDIA/CUDA implementation that established
+the first accepted gpu-compute appliance. Historical CUDA names remain valid
+provenance; the active appliance authority is now vendor-agnostic gpu-compute.
 
 The appliance separates operating-system roots from durable workload data:
 
@@ -35,6 +39,11 @@ passes so CPU fallback cannot silently become the service path.
 Katra storage remains isolated from its boot pool: the appliance uses the dedicated
 `cuda-katra` LVM-thin store on the approved 256 GiB allocation of the Sandisk Optimus
 5100. The host NVMe is not raw-passed into the guest.
+
+The durable compute interface is `/mnt/models` with filesystem label
+`cuda-models`. Its contract is independent of the Proxmox backing store:
+`cuda-katra` is the accepted LVM-thin implementation today, while a later ZFS
+or Ceph RBD transition is storage migration work—not application redesign.
 
 The abandoned full transitive-package closure experiment is historical evidence, not
 a deployment gate. Use trusted vendor sources, bounded transaction simulation,
