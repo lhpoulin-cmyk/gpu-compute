@@ -25,7 +25,8 @@ done
 
 for cmd in ssh qm python3; do command -v "$cmd" >/dev/null 2>&1 || { echo "missing command: $cmd" >&2; exit 69; }; done
 [[ $(hostname -s) == hv-katra ]] || { echo "run this capture on hv-katra" >&2; exit 69; }
-qm status "$vmid" | grep -Fq 'status: running' || { echo "VM $vmid is not running" >&2; exit 69; }
+vm_status=$(qm status "$vmid")
+[[ "$vm_status" == *"status: running"* ]] || { echo "VM $vmid is not running: $vm_status" >&2; exit 69; }
 ssh -o BatchMode=yes -o ConnectTimeout=5 "$guest" 'command -v nvidia-smi >/dev/null && nvidia-smi -L >/dev/null' \
   || { echo "guest NVIDIA telemetry is not reachable: $guest" >&2; exit 69; }
 
