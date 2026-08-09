@@ -74,6 +74,7 @@ would:
   apt-simulate $headers_pkg $pinning_pkg selected-driver $cuda_pkg=$cuda_pkg_version
   refuse any simulated package removals
   install that selected branch-$driver_branch driver and exact CUDA toolkit version
+  hold the selected driver and CUDA toolkit after installation
   install verified Ollama $ollama_version asset
   build llama.cpp $llama_ref at exact commit $llama_commit for sm_$llama_arch
   install Ollama service but leave it disabled/stopped until post-reboot GPU verification
@@ -147,7 +148,7 @@ fi
 
 apt-get install -y --no-install-recommends \
   "$headers_pkg" "$pinning_pkg" "$driver_pkg=$candidate_driver" "$cuda_pkg=$cuda_pkg_version"
-apt-mark hold "$cuda_pkg" >/dev/null
+apt-mark hold "$driver_pkg" "$cuda_pkg" >/dev/null
 
 cuda_root="/usr/local/cuda-${cuda_version}"
 [[ -x "$cuda_root/bin/nvcc" ]] || { echo "nvcc missing at $cuda_root/bin/nvcc" >&2; exit 69; }
