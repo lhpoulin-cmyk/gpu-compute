@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import csv
 import math
+import re
 import statistics
 import sys
+from collections import Counter
 from pathlib import Path
 
 if len(sys.argv) != 2:
@@ -11,6 +13,7 @@ if len(sys.argv) != 2:
 root = Path(sys.argv[1])
 host_file = root / "host-temps.tsv"
 fan_file = root / "host-fans.tsv"
+cpu_file = root / "host-cpu.tsv"
 gpu_file = root / "gpu.csv"
 
 
@@ -35,6 +38,12 @@ def statline(label, values, unit=""):
         f"avg={statistics.fmean(values):.1f}{unit} max={max(values):.1f}{unit}"
     )
 
+
+def first_number(value):
+    match = re.search(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", str(value))
+    return float(match.group(0)) if match else None
+
+
 package = []
 cores = []
 all_host = {}
@@ -55,6 +64,13 @@ if host_file.exists():
 print("=== case telemetry summary ===")
 print(statline("CPU package", package, " C"))
 print(statline("CPU cores (all samples)", cores, " C"))
+
+cpu_busy = []
+if cpu_file.exists():
+    with cpu_file.open(newline="") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        cpu_busy = [row.get("busy_percent") for row in reader]
+print(statline("Host CPU busy", cpu_busy, "%"))
 
 for key in sorted(all_host):
     if key.startswith("coretemp/"):
@@ -100,3 +116,39 @@ pstates = [r.get("pstate", "").strip() for r in gpu_rows if r.get("pstate", "").
 if pstates:
     counts = {p: pstates.count(p) for p in sorted(set(pstates))}
     print("GPU p-state samples: " + ", ".join(f"{k}={v}" for k, v in counts.items()))
+
+pcie_states = Counter()
+loaded_pcie_states = Counter()
+max_speed = None
+max_width = None
+for row in gpu_rows:
+    speed_text = (row.get("pcie.link.speed") or "").strip()
+    width_text = (row.get("pcie.link.width") or "").strip()
+    if not speed_text or not width_text:
+        continue
+    state = f"{speed_text} x{width_text}"
+    pcie_states[state] += 1
+    speed = first_number(speed_text)
+    width = first_number(width_text)
+    if speed is not None and (max_speed is None or speed > max_speed):
+        max_speed = speed
+    if width is not None and (max_width is None or width > max_width):
+        max_width = width
+    util = first_number(row.get("utilization.gpu", ""))
+    if util is not None and util >= 10.0:
+        loaded_pcie_states[state] += 1
+
+if pcie_states:
+    print("PCIe link samples: " + ", ".join(f"{state}={count}" for state, count in sorted(pcie_states.items())))
+else:
+    print("PCIe link samples: unavailable")
+
+if loaded_pcie_states:
+    print("PCIe loaded-link samples (GPU util >=10%): " + ", ".join(
+        f"{state}={count}" for state, count in sorted(loaded_pcie_states.items())
+    ))
+else:
+    print("PCIe loaded-link samples (GPU util >=10%): unavailable")
+
+if max_speed is not None and max_width is not None:
+    print(f"PCIe max observed: {max_speed:g} GT/s x{int(max_width)}")
