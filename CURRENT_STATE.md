@@ -35,21 +35,26 @@ passed decrypt/SHA-256 round-trip verification.
 
 ## Current RTX software contract
 
-The authenticated NVIDIA Ubuntu 26.04 repository now exposes:
+Driver policy is now deliberately branch-based rather than point-release pinned:
 
-- `nvidia-open=610.57.04-1ubuntu1`
-- `cuda-toolkit-13-3=13.3.1-1`
+- package: `nvidia-open`
+- branch: `610`
+- policy: newest authenticated version in branch 610
+- minimum driver: `610.43.02`
+- exact CUDA toolkit: `cuda-toolkit-13-3=13.3.1-1`
 
-The previous profile pin `610.43.02-1ubuntu1` caused the installer to fail closed
-before any NVIDIA/CUDA mutation. The profile and regression contract now track the
-observed live driver candidate exactly:
+Live authenticated repository evidence on 2026-08-09 showed
+`nvidia-open=610.57.04-1ubuntu1`. The earlier exact `610.43.02-1ubuntu1` pin caused the
+installer to fail closed before any NVIDIA/CUDA mutation. The installer now chooses
+the newest eligible branch-610 package, records the selected version, and still
+refuses package removals or a CUDA candidate change.
 
-- minimum driver: `610.57.04`
-- exact driver package: `610.57.04-1ubuntu1`
-- CUDA toolkit: `13.3.1-1`
-- Ollama: `0.32.0`
-- llama.cpp: `b10173`, commit
-  `e9fa0781f1c25fc4fe8c86be1edc6970661ad6f0`, `sm_120`
+Application/toolchain pins remain:
+
+- Ollama `0.32.0`
+- llama.cpp `b10173`
+- llama.cpp commit `e9fa0781f1c25fc4fe8c86be1edc6970661ad6f0`
+- CUDA architecture `sm_120`
 
 No NVIDIA driver, CUDA toolkit, Ollama, or llama.cpp installation has yet occurred.
 
@@ -59,9 +64,9 @@ Resume directly from the prepared VM 320:
 
 1. sync the updated branch and transfer the refreshed source snapshot to the guest;
 2. run regression/syntax checks;
-3. run the RTX installer dry-run and require the exact live candidates above with no
-   removals;
-4. apply the install;
+3. run the RTX installer dry-run;
+4. apply, selecting the newest authenticated branch-610 driver and exact CUDA 13.3
+   toolkit;
 5. reboot;
 6. prove NVIDIA/CUDA hardware execution;
 7. enable Ollama only after GPU smoke passes;
