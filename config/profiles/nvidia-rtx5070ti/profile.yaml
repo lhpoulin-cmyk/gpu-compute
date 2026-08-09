@@ -1,0 +1,62 @@
+profile:
+  id: nvidia-rtx5070ti
+  version: 0.2.0
+  status: not-yet-accepted
+  description: NVIDIA GeForce RTX 5070 Ti compute profile for hv-katra VM 320
+
+device:
+  expected_vendor: NVIDIA
+  expected_model: GeForce RTX 5070 Ti
+  expected_pci_id: "10de:2c05"
+  companion_audio_pci_id: "10de:22e9"
+  expected_kernel_driver: nvidia
+  compute_capability: "12.0"
+  vram_gib: 16
+  device_nodes:
+    - /dev/nvidia0
+    - /dev/nvidiactl
+    - /dev/nvidia-uvm
+    - /dev/nvidia-uvm-tools
+
+cuda:
+  pinned_version: "13.3"
+  minimum_driver: "610.43.02"
+  toolkit_package: cuda-toolkit-13-3
+  driver_package: nvidia-open
+  repository_distro: ubuntu2604
+  repository_arch: x86_64
+  repository_keyring_package: cuda-keyring_1.1-1_all.deb
+
+compute:
+  production:
+    - ollama
+    - llama-cpp
+  experimental:
+    - vulkan-compute
+  fallback_policy: reject
+
+ollama:
+  version: "0.32.0"
+  models_path: /mnt/models/library
+  host: "127.0.0.1:11434"
+  environment:
+    OLLAMA_MODELS: /mnt/models/library
+    OLLAMA_HOST: "127.0.0.1:11434"
+    CUDA_VISIBLE_DEVICES: "0"
+
+llama_cpp:
+  ref: b10173
+  repository: https://github.com/ggml-org/llama.cpp.git
+  cuda_architectures: "120"
+  install_prefix: /usr/local
+
+storage:
+  models_mount: /mnt/models
+  models_source: deployment-required
+  min_free_gib: 20
+  min_free_percent: 20
+
+required_tests:
+  - smoke/appliance
+  - smoke/cuda-nvidia
+  - acceptance/appliance

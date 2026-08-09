@@ -1,0 +1,33 @@
+# Copy to config/active-hardware-profile.yaml and replace observed placeholders.
+# This file is .gitignored; do not commit the populated instance file.
+
+profile:
+  id: nvidia-rtx5070ti
+  version: 0.2.0
+  status: accepted
+
+device:
+  observed_vendor: NVIDIA
+  observed_model: GeForce RTX 5070 Ti
+  observed_pci_id: "10de:2c05"
+  observed_kernel_driver: nvidia
+  observed_compute_capability: "12.0"
+  observed_vram_gib: 16
+  observed_device_node: /dev/nvidia0
+  observed_driver_version: "610.43.02-or-later"
+
+cuda:
+  observed_version: "13.3"
+  observed_toolkit: cuda-toolkit-13-3
+
+ollama:
+  observed_version: "0.32.0"
+  observed_models_path: /mnt/models/library
+
+llama_cpp:
+  observed_ref: b10173
+  observed_cuda_device: CUDA0
+
+storage:
+  observed_models_mount: /mnt/models
+  observed_free_gib: 0

@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+model= prompt= output= allow_cpu=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model)       model=${2:?missing model}; shift 2 ;;
+    --prompt)      prompt=${2:?missing prompt}; shift 2 ;;
+    --output)      output=${2:?missing output}; shift 2 ;;
+    --allow-cpu)   allow_cpu=true; shift ;;
+    *) echo "usage: run --model MODEL --prompt PROMPT --output PATH [--allow-cpu]" >&2; exit 64 ;;
+  esac
+done
+
+[[ -n "$model" ]] || { echo "--model is required" >&2; exit 64; }
+[[ -n "$prompt" ]] || { echo "--prompt is required" >&2; exit 64; }
+[[ -n "$output" ]] || { echo "--output is required" >&2; exit 64; }
+
+profile="$root/config/active-hardware-profile.yaml"
+[[ -r "$profile" ]] || { echo "active hardware profile not found; run bootstrap first" >&2; exit 66; }
+
+findmnt -M /mnt/models -n >/dev/null 2>&1 || { echo "/mnt/models not mounted" >&2; exit 69; }
+
+free_gib=$(df --output=avail -BG /mnt/models | tail -1 | tr -d 'G ')
+free_pct=$(df --output=pcent /mnt/models | tail -1 | tr -d '% ')
+remaining_pct=$(( 100 - free_pct ))
+if [[ "$free_gib" -lt 20 || "$remaining_pct" -lt 20 ]]; then
+  echo "storage reserve not met: ${free_gib} GiB free (${remaining_pct}% free)" >&2
+  exit 69
+fi
+
+systemctl is-active --quiet ollama || { echo "ollama service is not active" >&2; exit 69; }
+
+[[ -e "$output" ]] && { echo "output path already exists: $output" >&2; exit 73; }
+output_dir=$(dirname "$output")
+[[ -d "$output_dir" ]] || { echo "output directory not found: $output_dir" >&2; exit 66; }
+
+partial="${output}.part"
+job_id="job-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+evidence_dir="$root/evidence/$job_id"
+mkdir -p "$evidence_dir"
+
+log="$evidence_dir/ollama.log"
+meta="$evidence_dir/meta.yaml"
+
+cat > "$meta" <<YAML
+job_id: $job_id
+model: $model
+prompt: $(printf '%s' "$prompt" | head -c 256)
+output: $output
+timestamp_start: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+allow_cpu: $allow_cpu
+YAML
+
+echo "[$job_id] running inference: model=$model"
+
+OLLAMA_DEBUG=1 ollama run "$model" "$prompt" > "$partial" 2>"$log" || {
+  echo "[$job_id] inference failed; log: $log" >&2
+  echo "status: failed" >> "$meta"
+  exit 1
+}
+
+if ! $allow_cpu; then
+  if grep -qiE '^cpu$|using cpu|no gpu' "$log" 2>/dev/null; then
+    echo "[$job_id] CPU fallback detected in Ollama log; rejecting output" >&2
+    echo "status: failed-cpu-fallback" >> "$meta"
+    rm -f "$partial"
+    exit 1
+  fi
+  # Ollama keeps a recently used model loaded; `ollama ps` reports its processor split.
+  # Fail closed unless the active model is explicitly shown on GPU.
+  if ! ollama ps 2>/dev/null | grep -F "$model" | grep -qi 'GPU'; then
+    echo "[$job_id] Ollama did not prove GPU residency for $model; rejecting output" >&2
+    echo "status: failed-unproven-gpu" >> "$meta"
+    ollama ps >> "$log" 2>&1 || true
+    rm -f "$partial"
+    exit 1
+  fi
+fi
+
+[[ -s "$partial" ]] || { echo "[$job_id] output is empty" >&2; echo "status: failed-empty" >> "$meta"; rm -f "$partial"; exit 1; }
+
+sha=$(sha256sum "$partial" | awk '{print $1}')
+mv "$partial" "$output"
+
+cat >> "$meta" <<YAML
+timestamp_end: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+output_sha256: $sha
+status: succeeded
+YAML
+
+echo "[$job_id] succeeded: $output (sha256: $sha)"

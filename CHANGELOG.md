@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-08 Phase 3A construction checkpoint
+
+- Record Phase 1 and Phase 2 as accepted; Phase 3 remains not started.
+- Preserve the Phase 3A blocked finding: the isolated resolver authenticated the extracted Ubuntu archive keyring but also consulted live Ubuntu archives, so no deterministic CUDA closure was generated.
+- Record that Debian `qemu-utils` is rejected because its proposed transaction removes the Proxmox stack; existing `pve-qemu-kvm` supplied `qemu-nbd` for the read-only verified-cloud-image keyring extraction.
+
 ## 2026-08-08 host execution authority doctrine correction
 
 - Clarify that an explicit, bounded operator play on `hv-katra` authorizes the

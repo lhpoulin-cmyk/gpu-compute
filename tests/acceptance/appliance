@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+profile="$root/config/active-hardware-profile.yaml"
+[[ -r "$profile" ]] || { echo "active hardware profile required" >&2; exit 66; }
+
+pyval() {
+  python3 - "$profile" "$1" <<'PY'
+import sys, yaml
+with open(sys.argv[1]) as f: d=yaml.safe_load(f)
+v=d
+for k in sys.argv[2].split('.'): v=v[k]
+print(v)
+PY
+}
+expected_model=$(pyval device.expected_model)
+expected_cap=$(pyval device.compute_capability)
+expected_cuda=$(pyval cuda.pinned_version)
+expected_ollama=$(pyval ollama.version)
+expected_llama_ref=$(pyval llama_cpp.ref)
+
+failures=0
+check() { local label=$1; shift; "$@" >/dev/null 2>&1 && printf '[PASS] %s\n' "$label" || { printf '[FAIL] %s\n' "$label" >&2; failures=$((failures + 1)); }; }
+
+echo "=== acceptance/appliance ==="
+
+"$root/tests/smoke/appliance" || { echo "smoke/appliance prerequisite failed" >&2; exit 1; }
+"$root/tests/smoke/cuda-nvidia" || { echo "smoke/cuda-nvidia prerequisite failed" >&2; exit 1; }
+
+observed_name=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
+check "GPU identity: $expected_model" bash -c "grep -Fqi '$expected_model' <<<\"$observed_name\""
+check "compute capability: $expected_cap" bash -c "nvidia-smi --query-gpu=compute_cap --format=csv,noheader | grep -Fxq '$expected_cap'"
+check "VRAM >= 15 GiB" bash -c 'nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk "{exit (\$1 < 15000)}"'
+check "CUDA toolkit exactly $expected_cuda" bash -c "nvcc --version | grep -Eq 'release ${expected_cuda//./\\.}([, ]|$)'"
+check "Ollama version pinned $expected_ollama" bash -c "ollama --version 2>&1 | grep -Fq '$expected_ollama'"
+check "llama.cpp ref pinned $expected_llama_ref" bash -c "test -r /usr/local/share/cuda-compute/llama-cpp-ref && grep -Fxq '$expected_llama_ref' /usr/local/share/cuda-compute/llama-cpp-ref"
+check "llama.cpp CUDA device visible" bash -c "llama-cli --list-devices 2>&1 | grep -Eq 'CUDA0:.*5070 Ti'"
+
+check "/mnt/models writable" bash -c 'touch /mnt/models/.write-test && rm /mnt/models/.write-test'
+check "storage reserve >= 20 GiB" bash -c 'df --output=avail -BG /mnt/models | tail -1 | tr -d "G " | awk "{exit (\$1 < 20)}"'
+
+smoke_model=llama3.2:1b
+echo ""
+echo "--- model preparation ---"
+ollama pull "$smoke_model"
+
+# Run twice to prove repeated invocation on the GPU-only path.
+acceptance_dir="$root/tests/results"
+mkdir -p "$acceptance_dir"
+timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+first_output="/mnt/models/output/acceptance-${timestamp}-1.txt"
+second_output="/mnt/models/output/acceptance-${timestamp}-2.txt"
+
+start_ns=$(date +%s%N)
+"$root/bin/run" --model "$smoke_model" --prompt "Return the single word VERIFIED and nothing else." --output "$first_output"
+mid_ns=$(date +%s%N)
+"$root/bin/run" --model "$smoke_model" --prompt "Return the single word VERIFIED and nothing else." --output "$second_output"
+end_ns=$(date +%s%N)
+
+check "first output contains VERIFIED" grep -qi VERIFIED "$first_output"
+check "second output contains VERIFIED" grep -qi VERIFIED "$second_output"
+check "Ollama reports GPU processor" bash -c "ollama ps | grep -F '$smoke_model' | grep -qi GPU"
+
+"$root/bin/validate-output" --output "$first_output"
+"$root/bin/validate-output" --output "$second_output"
+
+sha1=$(sha256sum "$first_output" | awk '{print $1}')
+sha2=$(sha256sum "$second_output" | awk '{print $1}')
+first_ms=$(( (mid_ns - start_ns) / 1000000 ))
+second_ms=$(( (end_ns - mid_ns) / 1000000 ))
+observed_driver=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1 | tr -d '[:space:]')
+temp_c=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits | head -1 | tr -d '[:space:]')
+
+record="$acceptance_dir/acceptance-${timestamp}.yaml"
+cat > "$record" <<YAML
+accepted_at: "$timestamp"
+gpu: "$observed_name"
+compute_capability: "$expected_cap"
+driver: "$observed_driver"
+cuda_toolkit: "$expected_cuda"
+ollama: "$expected_ollama"
+llama_cpp_ref: "$expected_llama_ref"
+model: "$smoke_model"
+first_elapsed_ms: $first_ms
+second_elapsed_ms: $second_ms
+temperature_c_after: $temp_c
+first_output: "$first_output"
+first_sha256: "$sha1"
+second_output: "$second_output"
+second_sha256: "$sha2"
+processor_proof: "$(ollama ps | grep -F "$smoke_model" | head -1 | sed 's/"/\\"/g')"
+YAML
+record_sha=$(sha256sum "$record" | awk '{print $1}')
+
+echo ""
+[[ "$failures" -eq 0 ]] || { echo "acceptance/appliance: $failures check(s) failed" >&2; exit 1; }
+echo "acceptance/appliance: PASS"
+echo "acceptance record: $record"
+echo "acceptance record sha256: $record_sha"
+echo "first output sha256: $sha1"
+echo "second output sha256: $sha2"
+echo "Finalize with: bootstrap/finalize-instance.sh --vmid 320 --hostname cuda-compute-katra --node hv-katra --acceptance-sha256 $record_sha --apply"

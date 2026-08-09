@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+echo "=== cuda-compute doctor ==="
+echo "date: $(date -Is)"
+echo "host: $(hostname -f 2>/dev/null || hostname)"
+echo "kernel: $(uname -r)"
+echo
+
+echo "--- OS ---"
+cat /etc/os-release 2>/dev/null || true
+
+echo "--- NVIDIA ---"
+nvidia-smi 2>&1 || true
+nvidia-smi --query-gpu=name,pci.bus_id,driver_version,compute_cap,memory.total --format=csv,noheader 2>&1 || true
+
+echo "--- CUDA ---"
+nvcc --version 2>&1 || true
+ldconfig -p 2>/dev/null | grep -E 'libcuda|libcudart' || true
+
+echo "--- llama.cpp ---"
+llama-cli --version 2>&1 || true
+llama-cli --list-devices 2>&1 || true
+printf 'pinned ref: '
+cat /usr/local/share/cuda-compute/llama-cpp-ref 2>/dev/null || echo 'missing'
+
+echo "--- Ollama ---"
+ollama --version 2>&1 || true
+ollama ps 2>&1 || true
+
+echo "--- packages ---"
+dpkg-query -W nvidia-open cuda-toolkit-13-3 2>&1 || true
+printf 'apt holds: '
+apt-mark showhold 2>/dev/null | grep -E '^(cuda-toolkit-13-3|nvidia-open)$' || true
+
+echo "--- storage ---"
+findmnt /mnt/models 2>&1 || true
+df -hT / /mnt/models 2>&1 || true
+
+echo "--- network ---"
+ip -brief address 2>&1 || true
+ip route 2>&1 || true

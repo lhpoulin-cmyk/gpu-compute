@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+label=${1:-manual}
+ts=$(date -u +%Y%m%dT%H%M%SZ)
+dest="$root/evidence/${ts}-${label}"
+mkdir -p "$dest"
+
+echo "collecting evidence to $dest"
+
+{
+  echo "=== identity ==="
+  hostnamectl 2>&1 || true
+  uname -a
+  cat /etc/os-release
+
+  echo ""
+  echo "=== appliance ==="
+  cat "$root/BUILD" 2>&1 || true
+  cat "$root/config/active-hardware-profile.yaml" 2>&1 || true
+
+  echo ""
+  echo "=== nvidia-smi ==="
+  nvidia-smi 2>&1 || true
+  nvidia-smi --query-gpu=name,pci.bus_id,driver_version,memory.total,memory.free,compute_cap,temperature.gpu,utilization.gpu --format=csv 2>&1 || true
+
+  echo ""
+  echo "=== cuda ==="
+  nvcc --version 2>&1 || true
+  ls -la /dev/nvidia* 2>&1 || true
+
+  echo ""
+  echo "=== vulkan ==="
+  vulkaninfo --summary 2>&1 || true
+
+  echo ""
+  echo "=== ollama ==="
+  systemctl status ollama 2>&1 || true
+  ollama list 2>&1 || true
+
+  echo ""
+  echo "=== llama-cpp ==="
+  llama-cli --version 2>&1 || true
+
+  echo ""
+  echo "=== packages ==="
+  dpkg -l | grep -E 'nvidia|cuda|ollama|vulkan|llama' 2>&1 || true
+
+  echo ""
+  echo "=== storage ==="
+  lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT 2>&1 || true
+  df -h 2>&1 || true
+  findmnt -M /mnt/models 2>&1 || true
+
+  echo ""
+  echo "=== pci ==="
+  lspci -nnk | grep -A4 NVIDIA 2>&1 || true
+
+  echo ""
+  echo "=== kernel modules ==="
+  lsmod | grep -E 'nvidia|vfio|nouveau' 2>&1 || true
+
+} | tee "$dest/evidence.txt"
+
+echo "evidence written: $dest/evidence.txt"

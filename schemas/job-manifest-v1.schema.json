@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cuda-compute/job-manifest-v1",
+  "title": "CUDA Compute Job Manifest v1",
+  "type": "object",
+  "required": ["job_id", "model", "prompt", "output", "allow_cpu_fallback"],
+  "additionalProperties": false,
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "description": "Unique job identifier",
+      "pattern": "^job-[0-9]{8}T[0-9]{6}Z-[0-9]+$"
+    },
+    "model": {
+      "type": "string",
+      "description": "Ollama model reference (name:tag)"
+    },
+    "prompt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Inference prompt"
+    },
+    "output": {
+      "type": "string",
+      "description": "Absolute path for validated output"
+    },
+    "allow_cpu_fallback": {
+      "type": "boolean",
+      "description": "If false, job fails if CPU backend is detected"
+    },
+    "max_tokens": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum output tokens"
+    },
+    "vram_estimate_gib": {
+      "type": "number",
+      "description": "Estimated VRAM required for this model and quantization"
+    }
+  }
+}

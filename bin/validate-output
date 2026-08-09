@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+output= expected_sha=
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output)       output=${2:?missing output}; shift 2 ;;
+    --sha256)       expected_sha=${2:?missing sha256}; shift 2 ;;
+    *) echo "usage: validate-output --output PATH [--sha256 EXPECTED]" >&2; exit 64 ;;
+  esac
+done
+
+[[ -n "$output" ]] || { echo "--output is required" >&2; exit 64; }
+[[ -f "$output" ]] || { echo "output file not found: $output" >&2; exit 66; }
+[[ -s "$output" ]] || { echo "output file is empty: $output" >&2; exit 1; }
+
+actual_sha=$(sha256sum "$output" | awk '{print $1}')
+echo "file: $output"
+echo "size: $(du -h "$output" | awk '{print $1}')"
+echo "sha256: $actual_sha"
+
+if [[ -n "$expected_sha" ]]; then
+  if [[ "$actual_sha" == "$expected_sha" ]]; then
+    echo "sha256: MATCH"
+  else
+    echo "sha256: MISMATCH (expected $expected_sha)" >&2
+    exit 1
+  fi
+fi
+
+echo "validate-output: PASS"

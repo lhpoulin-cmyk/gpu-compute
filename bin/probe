@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+benchmark=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --benchmark) benchmark=true; shift ;;
+    *) echo "usage: probe [--benchmark]" >&2; exit 64 ;;
+  esac
+done
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+
+echo "=== cuda-compute probe ==="
+echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+echo ""
+echo "--- GPU identity ---"
+nvidia-smi --query-gpu=name,pci.bus_id,driver_version,memory.total,compute_cap \
+  --format=csv,noheader 2>&1 || { echo "nvidia-smi failed" >&2; exit 1; }
+
+echo ""
+echo "--- CUDA runtime ---"
+nvcc --version 2>&1 || echo "nvcc not found"
+python3 -c "import ctypes; ctypes.CDLL('libcuda.so.1'); print('libcuda.so.1 loadable')" 2>&1 || echo "libcuda not loadable"
+
+echo ""
+echo "--- device nodes ---"
+ls -la /dev/nvidia* 2>&1 || echo "no /dev/nvidia* nodes"
+
+echo ""
+echo "--- Vulkan compute ---"
+vulkaninfo --summary 2>&1 | grep -E 'deviceName|driverVersion|apiVersion' || echo "vulkaninfo unavailable"
+
+echo ""
+echo "--- Ollama ---"
+systemctl is-active ollama 2>&1 || true
+ollama list 2>&1 || echo "ollama unavailable"
+
+echo ""
+echo "--- model storage ---"
+findmnt -M /mnt/models -n -o TARGET,SOURCE,FSTYPE,SIZE,AVAIL 2>/dev/null || echo "/mnt/models: not mounted"
+
+if $benchmark; then
+  echo ""
+  echo "--- benchmark: synthetic CUDA inference ---"
+  profile="$root/config/active-hardware-profile.yaml"
+  [[ -r "$profile" ]] || { echo "active hardware profile not found; run bootstrap first" >&2; exit 66; }
+  findmnt -M /mnt/models -n >/dev/null 2>&1 || { echo "/mnt/models not mounted" >&2; exit 69; }
+  echo "pulling smoke model if absent..."
+  ollama pull llama3.2:1b 2>&1 || { echo "model pull failed" >&2; exit 1; }
+  echo "running timed inference..."
+  start=$(date +%s%N)
+  result=$(ollama run llama3.2:1b "Return the word VERIFIED and nothing else." 2>&1)
+  end=$(date +%s%N)
+  elapsed_ms=$(( (end - start) / 1000000 ))
+  echo "output: $result"
+  echo "elapsed: ${elapsed_ms}ms"
+  echo "CUDA provider confirmed:"
+  OLLAMA_DEBUG=1 ollama run llama3.2:1b "x" 2>&1 | grep -iE 'cuda|gpu|layers' | head -5 || true
+fi

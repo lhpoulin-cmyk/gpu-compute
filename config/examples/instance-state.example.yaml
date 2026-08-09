@@ -1,0 +1,12 @@
+# Copy to config/instance-state.yaml after first successful acceptance.
+# This file is .gitignored; do not commit the populated version.
+
+appliance: cuda-compute
+release: development
+commit: unset
+vmid: 320
+hostname: cuda-compute-katra
+node: hv-katra
+profile: nvidia-rtx5070ti
+created: "2026-08-08"
+accepted: null

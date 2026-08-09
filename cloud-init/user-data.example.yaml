@@ -1,0 +1,19 @@
+#cloud-config
+hostname: cuda-compute-katra
+fqdn: cuda-compute-katra.home.arpa
+manage_etc_hosts: true
+
+users:
+  - name: OPERATOR_USER
+    groups: [sudo]
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - PLACEHOLDER_SSH_PUBKEY
+    sudo: ALL=(ALL) NOPASSWD:ALL
+
+package_update: false
+package_upgrade: false
+
+runcmd:
+  - mkdir -p /srv/cuda-compute
+  - echo "cloud-init complete; format/mount the model disk, then run bootstrap/install.sh manually"

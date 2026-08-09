@@ -1,0 +1,12 @@
+evidence/
+.cache/
+jobs/*/
+logs/
+scratch/
+tmp/
+config/active-hardware-profile.yaml
+config/instance-state.yaml
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+failures=0
+check() { local label=$1; shift; "$@" >/dev/null 2>&1 && printf '[PASS] %s\n' "$label" || { printf '[FAIL] %s\n' "$label" >&2; failures=$((failures + 1)); }; }
+
+echo "=== smoke/appliance ==="
+
+check "workspace exists"      test -d /srv/cuda-compute
+check "BUILD present"         test -f /srv/cuda-compute/BUILD
+check "active profile"        test -f /srv/cuda-compute/config/active-hardware-profile.yaml
+check "bin/doctor"            test -x /srv/cuda-compute/bin/doctor
+check "bin/probe"             test -x /srv/cuda-compute/bin/probe
+check "bin/run"               test -x /srv/cuda-compute/bin/run
+check "bin/validate-output"   test -x /srv/cuda-compute/bin/validate-output
+check "bin/collect-evidence"  test -x /srv/cuda-compute/bin/collect-evidence
+check "nvidia-smi available"  command -v nvidia-smi
+check "ollama available"      command -v ollama
+check "llama-cli available"   command -v llama-cli
+check "llama.cpp ref marker"  test -s /usr/local/share/cuda-compute/llama-cpp-ref
+check "llama-server available" command -v llama-server
+check "/dev/nvidia0 present"  test -e /dev/nvidia0
+check "/mnt/models mounted"   findmnt -M /mnt/models -n
+check "model library exists"  test -d /mnt/models/library
+check "output directory exists" test -d /mnt/models/output
+check "ollama service active" systemctl is-active ollama
+
+[[ "$failures" -eq 0 ]] || { echo "smoke/appliance: $failures check(s) failed" >&2; exit 1; }
+echo "smoke/appliance: PASS"

@@ -1,0 +1,20 @@
+accepted_at: "20260808T000000Z"
+gpu: "NVIDIA GeForce RTX 5070 Ti"
+pci:
+  compute: "10de:2c05"
+  companion_audio: "10de:22e9"
+compute_capability: "12.0"
+driver: "610.43.02"
+cuda_toolkit: "13.3"
+cuda_package: cuda-toolkit-13-3
+ollama: "0.32.0"
+llama_cpp_ref: "b10173"
+model: "llama3.2:1b"
+first_elapsed_ms: 0
+second_elapsed_ms: 0
+temperature_c_after: 0
+first_output: "/mnt/models/output/acceptance-example-1.txt"
+first_sha256: "deployment-generated"
+second_output: "/mnt/models/output/acceptance-example-2.txt"
+second_sha256: "deployment-generated"
+processor_proof: "deployment-generated GPU proof from ollama ps"

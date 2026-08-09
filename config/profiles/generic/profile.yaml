@@ -1,0 +1,50 @@
+profile:
+  id: generic
+  version: 0.2.0
+  status: not-yet-validated
+  description: Placeholder generic CUDA compute profile
+
+device:
+  expected_vendor: NVIDIA
+  expected_model: deployment-required
+  expected_pci_id: deployment-required
+  companion_pci_ids: []
+  expected_kernel_driver: deployment-required
+  compute_capability: deployment-required
+  vram_gib: deployment-required
+  device_nodes:
+    - /dev/nvidia0
+
+cuda:
+  pinned_version: deployment-required
+  minimum_driver: deployment-required
+  toolkit_package: deployment-required
+  driver_package: deployment-required
+  repository_distro: deployment-required
+  repository_arch: deployment-required
+  repository_keyring_package: deployment-required
+
+compute:
+  production: []
+  experimental: []
+  fallback_policy: reject
+
+ollama:
+  version: deployment-required
+  models_path: /mnt/models/library
+  host: "127.0.0.1:11434"
+  environment: {}
+
+llama_cpp:
+  repository: deployment-required
+  ref: deployment-required
+  cuda_architectures: deployment-required
+  install_prefix: /usr/local
+
+storage:
+  models_mount: /mnt/models
+  models_source: deployment-required
+  min_free_gib: 20
+  min_free_percent: 20
+
+required_tests: []
