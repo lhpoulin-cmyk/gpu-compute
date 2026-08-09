@@ -1,6 +1,6 @@
 profile:
   id: nvidia-rtx5070ti
-  version: 0.6.0
+  version: 0.7.0
   status: not-yet-accepted
   description: NVIDIA GeForce RTX 5070 Ti Blackwell compute profile for hv-katra
 
@@ -27,11 +27,11 @@ device:
 
 cuda:
   pinned_version: "13.3"
-  minimum_driver: "610.43.02"
+  minimum_driver: "610.57.04"
   toolkit_package: cuda-toolkit-13-3
   toolkit_package_version: "13.3.1-1"
   driver_package: nvidia-open
-  driver_package_version: "610.43.02-1ubuntu1"
+  driver_package_version: "610.57.04-1ubuntu1"
   driver_branch: "610"
   kernel_module_flavor: open
   repository_distro: ubuntu2604
