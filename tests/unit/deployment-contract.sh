@@ -48,8 +48,7 @@ PY
 grep -Fq -- '--ssh-public-key-file' "$deploy" || { echo "runtime SSH public-key input missing" >&2; exit 1; }
 grep -Fq -- '--ipconfig0' "$deploy" || { echo "standard Proxmox ipconfig0 missing" >&2; exit 1; }
 grep -Fq -- '--ipconfig1' "$deploy" || { echo "standard Proxmox ipconfig1 missing" >&2; exit 1; }
-grep -Fq 'mapping=gpu-compute-rtx5070ti' <(sed 's/$mapping/gpu-compute-rtx5070ti/g' "$deploy") \
-  || { echo "logical GPU mapping path missing" >&2; exit 1; }
+grep -Fq 'attach-resource-mapping.sh' "$deploy" || { echo "logical GPU mapping attachment path missing" >&2; exit 1; }
 grep -Fq 'status: retired-example' "$example" || { echo "old example profile not retired" >&2; exit 1; }
 
 bash -n "$deploy"
