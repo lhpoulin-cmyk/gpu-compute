@@ -30,7 +30,7 @@ Authorized CUDA allocation:
 - Thin pool: `cuda-katra-thin`
 - Proxmox storage ID: `cuda-katra`
 - VM 9320 root disk: 32 GiB on `cuda-katra`
-- VM 320 root disk: 32 GiB on `cuda-katra`
+- VM 320 root disk: 64 GiB on `cuda-katra`
 - VM 320 model disk: 160 GiB on `cuda-katra`
 - Guest mount: `LABEL=cuda-models` → `/mnt/models`
 

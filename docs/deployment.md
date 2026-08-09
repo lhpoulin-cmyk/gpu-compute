@@ -19,7 +19,8 @@ mapping. The deployment script validates the exact compute/audio PCI IDs and
 
 - VMID 320 / `cuda-compute-katra`;
 - 8 vCPU / 16384 MiB RAM;
-- root 32 GiB on `cuda-katra`;
+- root 64 GiB on `cuda-katra` (full clone of the 32 GiB VM 9320 template,
+  expanded before first boot);
 - model disk 160 GiB on `cuda-katra`;
 - `192.168.10.92/24` on `vmbr0`, gateway `192.168.10.1`;
 - `192.168.100.92/24` on `vmbr1`, MTU 9000, no gateway;

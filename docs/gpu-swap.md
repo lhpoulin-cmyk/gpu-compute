@@ -26,7 +26,7 @@ card share one OS image.
 ## Durable data boundary
 
 The 160 GiB `cuda-models` virtual disk is the durable workload disk. It is distinct
-from the 32 GiB OS/root disk and may be detached from a stopped instance and attached
+from the 64 GiB OS/root disk and may be detached from a stopped instance and attached
 to its replacement instance after explicit identity checks. Model weights and
 accepted outputs do not need to be recopied merely because the GPU changes.
 

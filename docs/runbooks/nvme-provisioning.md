@@ -50,7 +50,7 @@ SN5100 1TB
     └── cuda-katra-vg
         └── cuda-katra-thin (95% of VG)
             ├── VM 9320 root/EFI/cloud-init: 32 GiB root
-            ├── VM 320 root/EFI/cloud-init: 32 GiB root
+            ├── VM 320 root/EFI/cloud-init: 64 GiB root
             └── VM 320 model disk: 160 GiB virtual disk
 ```
 

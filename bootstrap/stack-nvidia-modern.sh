@@ -154,6 +154,7 @@ apt-mark hold "$driver_pkg" "$cuda_pkg" >/dev/null
 
 cuda_root="/usr/local/cuda-${cuda_version}"
 [[ -x "$cuda_root/bin/nvcc" ]] || { echo "nvcc missing at $cuda_root/bin/nvcc" >&2; exit 69; }
+[[ -d "$cuda_root/nvvm/libdevice" ]] || { echo "CUDA libdevice directory missing at $cuda_root/nvvm/libdevice" >&2; exit 69; }
 ln -sfn "$cuda_root/bin/nvcc" /usr/local/bin/nvcc
 cat > /etc/profile.d/cuda-compute.sh <<EOF
 export PATH="$cuda_root/bin:\$PATH"
@@ -217,6 +218,7 @@ observed_commit=$(git -C "$build_root" rev-parse HEAD)
 
 cmake -S "$build_root" -B "$build_root/build" -G Ninja \
   -DGGML_CUDA=ON \
+  -DCMAKE_CUDA_COMPILER="$cuda_root/bin/nvcc" \
   -DCMAKE_CUDA_ARCHITECTURES="$llama_arch" \
   -DCUDAToolkit_ROOT="$cuda_root" \
   -DCMAKE_BUILD_TYPE=Release \

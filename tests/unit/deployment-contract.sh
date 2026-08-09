@@ -23,7 +23,7 @@ assert d['instance']['node'] == 'hv-katra'
 assert d['instance']['cores'] == 8
 assert d['instance']['memory_mb'] == 16384
 assert d['storage']['pve_storage_id'] == 'cuda-katra'
-assert d['storage']['root_disk_size_gib'] == 32
+assert d['storage']['root_disk_size_gib'] == 64
 assert d['storage']['models_disk_size_gib'] == 160
 assert d['storage']['models_label'] == 'cuda-models'
 assert d['storage']['models_mount'] == '/mnt/models'
@@ -49,6 +49,7 @@ grep -Fq -- '--ssh-public-key-file' "$deploy" || { echo "runtime SSH public-key 
 grep -Fq -- '--ipconfig0' "$deploy" || { echo "standard Proxmox ipconfig0 missing" >&2; exit 1; }
 grep -Fq -- '--ipconfig1' "$deploy" || { echo "standard Proxmox ipconfig1 missing" >&2; exit 1; }
 grep -Fq -- '--hostpci0' "$deploy" || { echo "direct GPU BDF attachment path missing" >&2; exit 1; }
+grep -Fq -- 'qm disk resize' "$deploy" || { echo "deployed-root resize path missing" >&2; exit 1; }
 grep -Fq 'status: retired-example' "$example" || { echo "old example profile not retired" >&2; exit 1; }
 
 bash -n "$deploy"

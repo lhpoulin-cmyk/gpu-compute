@@ -32,7 +32,7 @@ gpu:
 
 storage:
   pve_storage_id: cuda-katra
-  root_disk_size_gib: 32
+  root_disk_size_gib: 64
   models_disk_size_gib: 160
   models_label: cuda-models
   models_mount: /mnt/models

@@ -76,11 +76,12 @@ done
 [[ "$primary_bridge" == vmbr0 && "$secondary_bridge" == vmbr1 && "$secondary_mtu" == 9000 ]] \
   || { echo "unexpected bridge/MTU contract" >&2; exit 65; }
 [[ "$hardware_profile" == nvidia-rtx5070ti ]] || { echo "unexpected GPU profile contract" >&2; exit 65; }
-[[ "$root_size" == 32 && "$models_size" == 160 ]] \
+[[ "$root_size" == 64 && "$models_size" == 160 ]] \
   || { echo "unexpected disk-size contract" >&2; exit 65; }
 
 commands=(
   "$(shell_join qm clone "$template" "$vmid" --name "$name" --full 1 --storage "$storage")"
+  "$(shell_join qm disk resize "$vmid" scsi0 "${root_size}G")"
   "$(shell_join qm set "$vmid" --cores "$cores" --memory "$memory" --net0 "virtio,bridge=$primary_bridge" --net1 "virtio,bridge=$secondary_bridge,mtu=$secondary_mtu")"
   "$(shell_join qm set "$vmid" --scsi1 "$storage:$models_size,discard=on,ssd=1,iothread=1")"
   "$(shell_join qm set "$vmid" --ciuser "$ciuser" --sshkeys "$ssh_public_key_file" --ciupgrade 0 --nameserver "$dns_servers" --searchdomain "$search_domain" --ipconfig0 "ip=$primary_ip,gw=$primary_gw" --ipconfig1 "ip=$secondary_ip")"
@@ -144,6 +145,7 @@ trap on_error ERR
 
 qm clone "$template" "$vmid" --name "$name" --full 1 --storage "$storage"
 created=true
+qm disk resize "$vmid" scsi0 "${root_size}G"
 qm set "$vmid" --cores "$cores" --memory "$memory" \
   --net0 "virtio,bridge=$primary_bridge" \
   --net1 "virtio,bridge=$secondary_bridge,mtu=$secondary_mtu"
