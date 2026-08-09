@@ -20,7 +20,7 @@ stack=$(yaml_value "$profile" stack kind)
 os_version=$(yaml_value "$profile" os version)
 [[ -n "$stack" && -n "$os_version" ]] || { echo "profile must declare stack.kind and os.version" >&2; exit 65; }
 
-common_packages=(ca-certificates curl git htop libvulkan1 pciutils python3-yaml vulkan-tools wget zstd)
+common_packages=(ca-certificates curl git htop libvulkan1 mokutil pciutils python3-yaml vulkan-tools wget zstd)
 build_packages=(build-essential cmake libcurl4-openssl-dev ninja-build pkg-config)
 
 echo "# profile stack: $stack"
@@ -61,6 +61,10 @@ if grep -Eq '^Remv ' "$base_sim"; then
   exit 69
 fi
 apt-get install -y --no-install-recommends "${common_packages[@]}" "${build_packages[@]}"
+
+if command -v mokutil >/dev/null 2>&1; then
+  mokutil --sb-state 2>&1 | tee /var/lib/cuda-compute/secure-boot-state.txt || true
+fi
 
 if $template_mode; then
   dpkg-query -W > /var/lib/cuda-compute/template-package-versions.txt
