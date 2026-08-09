@@ -1,55 +1,65 @@
 # Current state
 
-## 2026-08-08 host state
+## 2026-08-08 accepted host state
 
 Phase 1 storage is **ACCEPTED**. Phase 2 VFIO/reboot validation is **ACCEPTED**.
+Phase 3 modern template construction is **ACCEPTED**.
+
 The dedicated `cuda-katra` LVM-thin store occupies exactly the approved 256 GiB
 partition on the Sandisk Optimus 5100; the remaining 675.5 GiB remains
-unpartitioned. The RTX 5070 Ti compute/audio functions are persistently bound to
-`vfio-pci`, the upstream root port remains host-owned, and both host bridges survived
-reboot (`vmbr1` remains MTU 9000).
+unpartitioned. The RTX 5070 Ti compute/audio functions remain persistently bound to
+`vfio-pci`, the upstream root port remains host-owned by `pcieport`, and both host
+bridges remain healthy (`vmbr1` MTU 9000).
 
-No VM 9320 or VM 320 has yet been created by the template/deployment phases.
+## Phase 3 accepted result
 
-## Construction correction
-
-The earlier Phase 3A attempt over-constrained normal package construction by
-requiring a complete cryptographic lock of every transitive CUDA package before a
-template could exist. That experiment is historical evidence only and is **not** a
-deployment prerequisite.
-
-The repository now follows the proven appliance pattern:
-
-- verify the base OS image;
-- use bounded package simulations before guest package mutation;
-- refuse dangerous removals or unexpected stack replacement;
-- use official vendor repositories;
-- pin high-value top-level toolchain/application choices where useful;
-- record exact installed versions;
-- prove the real hardware path during instance acceptance.
-
-## Modern OS template
-
-Phase 3 now creates VM 9320 as an **unbooted, hardware-neutral Ubuntu 26.04 cloud-image template**.
-
-VM 9320 contract:
+VM 9320 now exists as the modern unbooted hardware-neutral Ubuntu 26.04 template:
 
 - VMID: 9320
 - name: `tpl-compute-ubuntu2604-20260808`
-- Canonical cloud image serial: `20260612`
-- accepted image SHA-256: `0c9fb915bab0b36b361d3bf8aeae2115dda19d81a306656964de048033481670`
+- Canonical cloud-image release serial: `20260612`
+- verified image SHA-256: `0c9fb915bab0b36b361d3bf8aeae2115dda19d81a306656964de048033481670`
 - q35 + OVMF
 - 8 vCPU / 16 GiB RAM
-- 32 GiB root, EFI, and cloud-init disks entirely on `cuda-katra`
-- `vmbr0` only
-- no GPU
-- no model disk
-- no vendor driver/toolkit
-- no cuda-compute checkout
+- `scsi0`: `cuda-katra:base-9320-disk-0`, 32 GiB
+- EFI disk: `cuda-katra`
+- cloud-init disk: `cuda-katra`
+- one NIC on `vmbr0`
+- `template: 1`
+- no GPU assignment
+- no model/data disk
+- no `vmbr1`
+- no VM disk on `local` or `local-zfs`
+- no raw NVMe assignment
 - never booted before template conversion
 
-Because the Canonical cloud image is converted directly into a Proxmox template,
-Phase 3 has **no guest bootstrap and no sanitation step**.
+The initial execution session disconnected while Proxmox was creating/importing the
+thin LV. The underlying process continued normally. The journal later showed scsi0
+attachment, resize, EFI/cloud-init creation, and successful `qm template 9320`
+completion at 23:21:53. No retry, process termination, cleanup, or repair was required.
+
+Post-construction LVM state is healthy:
+
+- `base-9320-disk-0` exists as a 32 GiB thin LV
+- thin pool `cuda-katra-thin`: Data% 0.86, Meta% 10.64
+- thin-pool monitoring: enabled
+- `dm-event.service`: active/running
+- `lvm2-monitor.service`: active/exited
+- no kernel I/O or NVMe errors observed
+
+## Construction doctrine
+
+The earlier Phase 3A full transitive-package closure experiment remains historical
+evidence only and is not a deployment prerequisite.
+
+VM 9320 is intentionally just a reusable OS image. It contains no `cuda-compute`
+checkout, BUILD record, vendor GPU driver/toolkit, Ollama, llama.cpp build, model disk,
+production identity, or runtime evidence. There is no template guest bootstrap or
+sanitation step.
+
+For deployed guests use the proven appliance pattern: trusted OS/vendor sources,
+bounded package simulation, refusal of dangerous removals, high-value top-level pins,
+recorded installed versions, and live hardware acceptance.
 
 ## GPU families
 
@@ -57,30 +67,26 @@ The modern Ubuntu 26.04 template is intended for:
 
 - RTX 5070 Ti: Blackwell, CUDA 13.3, `sm_120`, NVIDIA open kernel modules.
 - RX 9070 XT: RDNA4, ROCm 7.14, `gfx1201` (design-stage until locally tested).
-- a future Arc Pro B70 profile may reuse this modern template when a B70 is local; no B70 implementation is in the current critical path.
+- a future Arc Pro B70 profile may reuse this template when a B70 is local; no B70 work is in the current critical path.
 
 The Quadro P6000 remains legacy compatibility only. Its Pascal CUDA 12.9 / R580
-profile requires a separate Ubuntu 24.04 disposable root/template when it is actually
-tested and does not block the modern deployment.
+profile requires a separate Ubuntu 24.04 disposable root/template when actually
+tested.
 
-## Current reference deployment
+## Next executable boundary — reference VM 320
 
-The immediate target after template acceptance remains VM 320 on `hv-katra` with the
-RTX 5070 Ti:
+The next phase is deployment of VM 320 on `hv-katra` with the RTX 5070 Ti:
 
+- VMID: 320
+- hostname: `cuda-compute-katra`
 - 8 vCPU / 16 GiB RAM
-- root: 32 GiB on `cuda-katra`
-- model/data: 160 GiB on `cuda-katra`, label `cuda-models`, mounted `/mnt/models`
-- `192.168.10.92/24` on `vmbr0`
-- `192.168.100.92/24` on `vmbr1`, MTU 9000
-- default route only through `192.168.10.1`
+- full clone from VM 9320, root remaining on `cuda-katra`
+- model/data disk: 160 GiB on `cuda-katra`, label `cuda-models`, mount `/mnt/models`
+- `192.168.10.92/24` on `vmbr0`, gateway `192.168.10.1`
+- `192.168.100.92/24` on `vmbr1`, MTU 9000, no gateway
+- DNS: `192.168.10.250`, `192.168.10.251`
+- logical GPU mapping: `gpu-compute-rtx5070ti`
 
-## Next executable boundary
-
-The next executable boundary is **Phase 3 only**: run the reviewed
-`proxmox/create-template.sh` against `proxmox/hv-katra-template.yaml`, verify the
-Ubuntu image hash, import the image to `cuda-katra`, convert VM 9320 directly to a
-template without booting it, verify host/storage/VFIO health, and stop.
-
-Only after Phase 3 acceptance should VM 320 be created and the RTX 5070 Ti stack be
-installed and accepted.
+The deployed clone receives the repository, model storage, production network identity,
+NVIDIA/CUDA software, Ollama, llama.cpp, and live acceptance. Acceptance—not cloning or
+driver installation—promotes VM 320 into the reference appliance.
