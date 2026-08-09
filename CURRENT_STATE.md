@@ -1,59 +1,70 @@
 # Current state
 
-## 2026-08-08 evidence-backed definition
+## 2026-08-08 host state
 
-The verified local LifeTap Phase 1 refresh (`evidence/20260808-phase1-lifetap-hv-katra`, captured 2026-08-08T22:30:18Z--22:30:21Z) is the installation baseline for `hv-katra`. Its checked manifest digest is recorded under `docs/evidence/`.
+Phase 1 storage is **ACCEPTED**. Phase 2 VFIO/reboot validation is **ACCEPTED**.
+The dedicated `cuda-katra` LVM-thin store occupies exactly the approved 256 GiB
+partition on the Sandisk Optimus 5100; the remaining 675.5 GiB remains
+unpartitioned. The RTX 5070 Ti compute/audio functions are persistently bound to
+`vfio-pci`, the upstream root port remains host-owned, and both host bridges
+survived reboot (`vmbr1` remains MTU 9000).
 
-Observed host state relevant to this appliance:
+No VM 9320 or VM 320 has yet been created by the template/deployment phases.
 
-- Proxmox VE `9.2.2`, kernel `7.0.14-6-pve`.
-- Intel Core i7-9700KF, 8 cores / 8 CPUs, ~31.3 GiB RAM.
-- `vmbr0` is UP at `192.168.10.21/24`, MTU 1500.
-- `vmbr1` is **UP, LOWER_UP**, operational state UP, at
-  `192.168.100.21/24`, MTU 9000. Guest interfaces are forwarding on it.
-  A stale `enp2s0` boot-journal error is not treated as evidence that the
-  bridge is down.
-- RTX 5070 Ti compute function: `0000:01:00.0`, PCI ID `10de:2c05`.
-- RTX 5070 Ti audio function: `0000:01:00.1`, PCI ID `10de:22e9`.
-- Both GPU functions are in IOMMU group 1.
-- Sandisk Optimus 5100 1TB: `nvme0n1`, serial `26100U800434`, stable by-id
-  `nvme-Sandisk_Optimus_5100_1TB_26100U800434`, now has only GPT partition 1: exactly 256 GiB, type `8E00`, label `cuda-katra-lvm`. The remaining 675.5 GiB is unpartitioned.
+## Construction correction
 
-Phase 1 is **ACCEPTED**: `/dev/nvme0n1p1` is the PV in `cuda-katra-vg`; its active `cuda-katra-thin` pool is registered as Proxmox storage `cuda-katra`. Phase 2 is **ACCEPTED**: post-reboot VFIO binding is retained for both GPU functions and the host-owned root port remains `pcieport`.
+The earlier Phase 3A attempt over-constrained normal package construction by
+requiring a complete cryptographic lock of every transitive CUDA package before a
+template could exist. That is no longer the appliance contract.
 
-Phase 3 has **NOT STARTED**: no VM 9320, VM disk, guest, or template exists. Phase 3A is **BLOCKED** pending a corrected snapshot-only isolated Ubuntu resolver/build-contract implementation. The current resolver demonstrated that its configuration consulted live Ubuntu archive endpoints as well as the accepted snapshot; no closure lock or deterministic software lock may be claimed from that transaction.
+The repository now follows the proven appliance pattern used by the existing GPU
+encode work:
 
-## Locked deployment design
+- verify the base OS image;
+- simulate bounded package transactions before applying them;
+- refuse dangerous removals or unexpected stack replacement;
+- use official vendor repositories;
+- pin high-value top-level application/toolchain choices where useful;
+- record the exact packages/versions actually installed;
+- prove the real hardware path during instance acceptance.
 
-- Guest OS: Ubuntu Server 26.04 LTS.
-- CUDA toolkit: **13.3**, pinned to package branch `cuda-toolkit-13-3`.
-- NVIDIA guest driver: open kernel modules via `nvidia-open`; acceptance
-  requires driver `610.43.02` or later.
-- GPU: GeForce RTX 5070 Ti, compute capability **12.0**, 16 GiB VRAM.
-- Ollama: pinned `0.32.0`, loopback API, models under `/mnt/models/library`.
-- llama.cpp: pinned tag `b10173`, built with `GGML_CUDA=ON` and
-  `CMAKE_CUDA_ARCHITECTURES=120`.
-- CPU fallback: rejected for production jobs.
-- VM 320: 8 vCPU, 16 GiB RAM.
-- VM 320 network: `192.168.10.92/24` on `vmbr0`; `192.168.100.92/24` on
-  `vmbr1`, MTU 9000. Default route only through `192.168.10.1`.
-- Dedicated host allocation: first 256 GiB of the blank SN5100 becomes
-  Proxmox LVM-thin storage `cuda-katra`; remaining physical capacity stays
-  untouched.
-- VM 9320 root: 32 GiB on `cuda-katra`, temporary retention 90 days.
-- VM 320 root: 32 GiB on `cuda-katra`.
-- VM 320 model/data disk: 160 GiB on `cuda-katra`, ext4 label `cuda-models`,
-  mounted at `/mnt/models`.
-- No VM disk is placed on Katra's existing boot pool.
+The abandoned isolated snapshot/CUDA-closure experiment remains historical
+evidence; it is not a prerequisite for VM 9320.
 
-## Acceptance still pending
+## Shared GPU architecture
 
-Acceptance is intentionally not claimed until VM 320 exists and proves:
+VM 9320 is now a hardware-neutral **Ubuntu 24.04 LTS** template. Ubuntu 24.04 is
+the common supported base for the current target profiles:
 
-- exact RTX 5070 Ti identity and compute capability 12.0;
-- driver >= 610.43.02 and CUDA toolkit exactly 13.3;
-- compiled CUDA kernel execution on the passed-through GPU;
-- llama.cpp exposes the RTX 5070 Ti as `CUDA0`;
-- repeated Ollama inference with `ollama ps` proving GPU residency;
-- mounted model storage and reserve policy;
-- output validation and machine-readable acceptance evidence.
+- RTX 5070 Ti: NVIDIA Blackwell, CUDA 13.3, `sm_120`, open kernel modules.
+- RX 9070 XT: AMD RDNA4, ROCm, `gfx1201`.
+- Quadro P6000: NVIDIA Pascal, CUDA 12.9, `sm_61`, proprietary R580 branch.
+
+The template itself contains no vendor GPU driver, CUDA, ROCm, Ollama, llama.cpp,
+GPU assignment, model disk, or production identity. GPU-specific software is
+installed only after a clone receives an actual GPU profile.
+
+The 32 GiB root disk is disposable. The 160 GiB model/data virtual disk is the
+durable workload boundary and can be preserved across an explicitly reviewed GPU
+swap/rebuild. See `docs/gpu-swap.md`.
+
+## Current reference deployment
+
+The immediate reference target remains VM 320 on `hv-katra` with the RTX 5070 Ti:
+
+- 8 vCPU / 16 GiB RAM
+- root: 32 GiB on `cuda-katra`
+- model/data: 160 GiB on `cuda-katra`, label `cuda-models`, mounted `/mnt/models`
+- `192.168.10.92/24` on `vmbr0`
+- `192.168.100.92/24` on `vmbr1`, MTU 9000
+- default route only through `192.168.10.1`
+
+## Next executable boundary
+
+Phase 3 is now the creation of the generic VM 9320 Ubuntu 24.04 template only.
+It does not install a GPU vendor stack and therefore does not require CUDA/ROCm
+package closure work.
+
+After template acceptance, the RTX 5070 Ti clone/deployment is the next phase.
+RX 9070 XT and P6000 profiles are included now so later card swaps use the same
+template/data-disk pattern instead of growing separate appliance designs.
