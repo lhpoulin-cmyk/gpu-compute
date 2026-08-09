@@ -1,8 +1,15 @@
 profile:
   id: nvidia-rtx5070ti
-  version: 0.3.0
+  version: 0.4.0
   status: not-yet-accepted
-  description: NVIDIA GeForce RTX 5070 Ti compute profile for hv-katra VM 320
+  description: NVIDIA GeForce RTX 5070 Ti Blackwell compute profile for hv-katra
+
+os:
+  family: ubuntu
+  version: "24.04"
+
+stack:
+  kind: nvidia-cuda-modern
 
 device:
   expected_vendor: NVIDIA
@@ -24,8 +31,9 @@ cuda:
   toolkit_package: cuda-toolkit-13-3
   toolkit_package_version: "13.3.1-1"
   driver_package: nvidia-open
-  driver_package_version: "610.57.04-1ubuntu1"
-  repository_distro: ubuntu2604
+  driver_branch: "610"
+  kernel_module_flavor: open
+  repository_distro: ubuntu2404
   repository_arch: x86_64
   repository_keyring_package: cuda-keyring_1.1-1_all.deb
   repository_keyring_sha256: f7f474b5f6a4adf987aa587920df00e713285958ef6a913dda1945a544a3099e
@@ -46,10 +54,6 @@ ollama:
   asset_sha256: 56362d7609dfa9e35aaebb7c9cab25605d8f0528ec3d5d585dc83d6642002bab
   models_path: /mnt/models/library
   host: "127.0.0.1:11434"
-  environment:
-    OLLAMA_MODELS: /mnt/models/library
-    OLLAMA_HOST: "127.0.0.1:11434"
-    CUDA_VISIBLE_DEVICES: "0"
 
 llama_cpp:
   ref: b10173
