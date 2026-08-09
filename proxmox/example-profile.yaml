@@ -1,57 +1,14 @@
-# Example private deployment profile for VM 320 on hv-katra.
-# Real profiles live outside this repository. Replace PLACEHOLDER values before use.
-
-appliance:
-  template_vmid: 9320
-  template_name: tpl-cuda-compute-ubuntu2604-20260808
-  template_retention_days: 90
-  ubuntu_iso_volume: local:iso/ubuntu-26.04-live-server-amd64.iso
-  release: development
-  repository: https://github.com/PLACEHOLDER/cuda-compute
-
-instance:
-  vmid: 320
-  name: cuda-compute-katra
-  node: hv-katra
-  cores: 8
-  memory_mb: 16384
-
-virtualization:
-  machine: q35
-  primary_bridge: vmbr0
-  secondary_bridge: vmbr1
-  secondary_mtu: 9000
-
-network:
-  primary_ipv4: 192.168.10.92/24
-  primary_gateway: 192.168.10.1
-  secondary_ipv4: 192.168.100.92/24
-  secondary_gateway: none
-  dns_servers:
-    - 192.168.10.250
-    - 192.168.10.251
-  search_domain: home.arpa
-
-gpu:
-  resource_mapping: gpu-compute-rtx5070ti
-  profile: nvidia-rtx5070ti
-  render_node: /dev/nvidia0
-  host_compute_function: "0000:01:00.0"
-  host_audio_function: "0000:01:00.1"
-
-storage:
-  pve_storage_id: cuda-katra
-  os_disk_size_gib: 32
-  models_disk_size_gib: 160
-  host_nvme_by_id: nvme-Sandisk_Optimus_5100_1TB_26100U800434
-  host_nvme_serial: "26100U800434"
-  host_partition_size_gib: 256
-  vg_name: cuda-katra-vg
-  thin_pool: cuda-katra-thin
-
-cloud_init:
-  user_data: PLACEHOLDER/user-data.yaml
-  vendor_data: PLACEHOLDER/vendor-data.yaml
-  network_config: PLACEHOLDER/network-config.yaml
-  snippets_storage: local
-  snippets_directory: /var/lib/vz/snippets
+# Historical example only. Do not execute this file.
+#
+# The current hv-katra RTX 5070 Ti deployment profile is:
+#   proxmox/hv-katra-rtx5070ti.yaml
+#
+# Runtime SSH access is supplied separately with:
+#   --ssh-public-key-file FILE
+#
+# VM 320 now uses standard Proxmox cloud-init fields rather than committed
+# user-data/vendor-data/network-config snippet paths.
+#
+# Keep this file only as a signpost for older documentation references.
+status: retired-example
+replacement: proxmox/hv-katra-rtx5070ti.yaml
