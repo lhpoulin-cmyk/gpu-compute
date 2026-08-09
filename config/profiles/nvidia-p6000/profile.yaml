@@ -1,12 +1,13 @@
 profile:
   id: nvidia-p6000
-  version: 0.1.0
-  status: not-yet-accepted
-  description: NVIDIA Quadro P6000 Pascal compute profile for swap testing
+  version: 0.2.0
+  status: legacy-design-only
+  description: NVIDIA Quadro P6000 Pascal compatibility profile; requires a separate Ubuntu 24.04 root/template when tested
 
 os:
   family: ubuntu
   version: "24.04"
+  template_family: legacy-separate-root
 
 stack:
   kind: nvidia-cuda-pascal
