@@ -1,95 +1,72 @@
 # Current state
 
-## 2026-08-08 accepted host / VM state
+## Accepted host / VM state
 
-The following phases are complete and accepted:
+Accepted:
 
-- Phase 1 storage: **ACCEPTED**
-- Phase 2 VFIO/reboot validation: **ACCEPTED**
-- Phase 3 Ubuntu 26.04 template construction: **ACCEPTED**
-- Phase 4 VM 320 construction/start: **ACCEPTED**
+- Phase 1 storage
+- Phase 2 VFIO/reboot validation
+- Phase 3 Ubuntu 26.04 template construction
+- Phase 4 VM 320 construction/start
+- VM 320 guest-network recovery
+- encrypted SOPS/age preservation of network-recovery evidence
+- 160 GiB model-disk preparation
 
-`cuda-katra` remains the dedicated LVM-thin store on the approved first 256 GiB of
-the Sandisk Optimus 5100. The remaining ~675.5 GiB remains unpartitioned. Both host
-bridges remain healthy and `vmbr1` remains MTU 9000.
+VM 9320 remains the accepted Ubuntu 26.04 template on `cuda-katra`.
 
-## Accepted template VM 9320
+VM 320 is running as `cuda-compute-katra` with:
 
-VM 9320 is `tpl-compute-ubuntu2604-20260808`, an unbooted-before-conversion Ubuntu
-26.04 Canonical cloud-image template. Its 32 GiB root, EFI disk, and cloud-init disk
-are all on `cuda-katra`. It has one `vmbr0` NIC and no GPU, model disk, `vmbr1`,
-local/local-zfs VM disk, or raw NVMe assignment.
+- 8 vCPU / 16384 MiB RAM
+- root/EFI/cloud-init/model disks on `cuda-katra`
+- direct RTX 5070 Ti passthrough (`10de:2c05`)
+- `ens18`: `192.168.10.92/24`, default route via `192.168.10.1`
+- `ens19`: `192.168.100.92/24`, MTU 9000, no gateway
+- DNS `192.168.10.250 192.168.10.251`, search `home.arpa`
+- `/dev/sdb`: ext4, `LABEL=cuda-models`, mounted `/mnt/models`
+- Secure Boot enabled
 
-The accepted source image is Canonical release serial `20260612`, SHA-256
-`0c9fb915bab0b36b361d3bf8aeae2115dda19d81a306656964de048033481670`.
+The cloud-init network fault was a failed attempted rename of the primary NIC to
+`eth0`; recovery replaced the guest netplan with MAC-bound definitions and disabled
+cloud-init network rewrites. Host networking, VFIO, GPU attachment, and storage layout
+were untouched.
 
-## Accepted reference VM construction
+Recovery evidence is sealed in Git under `evidence/encrypted/` using SOPS + age and
+passed decrypt/SHA-256 round-trip verification.
 
-VM 320 now exists and is running as `cuda-compute-katra`:
+## Current RTX software contract
 
-- full clone of VM 9320;
-- 8 vCPU / 16384 MiB RAM;
-- 32 GiB root, EFI, cloud-init, and 160 GiB `scsi1` all on `cuda-katra`;
-- no VM disk on `local` or `local-zfs`;
-- `vmbr0`: `192.168.10.92/24`, gateway `192.168.10.1`;
-- `vmbr1`: `192.168.100.92/24`, MTU 9000, no gateway;
-- DNS `192.168.10.250 192.168.10.251`, search domain `home.arpa`;
-- direct PCI passthrough of host function `0000:01:00.0` as `hostpci0`;
-- host compute function identity `10de:2c05` and companion audio `10de:22e9` were
-  verified under `vfio-pci` before deployment.
+The authenticated NVIDIA Ubuntu 26.04 repository now exposes:
 
-A Proxmox logical PCI mapping is intentionally **not** required for this fixed
-single-host reference implementation. Direct BDF passthrough is guarded by exact PCI
-identity and host-driver preflight.
+- `nvidia-open=610.57.04-1ubuntu1`
+- `cuda-toolkit-13-3=13.3.1-1`
 
-## Guest construction implementation
+The previous profile pin `610.43.02-1ubuntu1` caused the installer to fail closed
+before any NVIDIA/CUDA mutation. The profile and regression contract now track the
+observed live driver candidate exactly:
 
-The current branch now contains the previously missing executable RTX 5070 Ti guest
-stack:
+- minimum driver: `610.57.04`
+- exact driver package: `610.57.04-1ubuntu1`
+- CUDA toolkit: `13.3.1-1`
+- Ollama: `0.32.0`
+- llama.cpp: `b10173`, commit
+  `e9fa0781f1c25fc4fe8c86be1edc6970661ad6f0`, `sm_120`
 
-- `bootstrap/prepare-model-disk.sh` — identifies exactly one unambiguous ~160 GiB
-  non-root blank disk, refuses existing signatures/partitions/mounts, formats ext4
-  `LABEL=cuda-models`, and mounts `/mnt/models`;
-- `bootstrap/stack-nvidia-modern.sh` — Ubuntu 26.04 NVIDIA network-repository setup,
-  bounded APT simulation, branch-610 open driver, CUDA 13.3, verified Ollama 0.32.0,
-  and pinned llama.cpp `b10173` build for `sm_120`;
-- `bootstrap/packages.sh` — dispatches the modern NVIDIA stack and keeps AMD/Pascal
-  non-executable on this instance;
-- `bootstrap/install-profile.sh` — installs instance profile/kernel/service state
-  without duplicating driver package installation;
-- `bootstrap/install.sh` — completes installation but explicitly defers GPU acceptance
-  until after reboot;
-- `tests/unit/nvidia-modern-contract.sh` — regression contract for the guest stack.
+No NVIDIA driver, CUDA toolkit, Ollama, or llama.cpp installation has yet occurred.
 
-The NVIDIA Ubuntu 26.04 repository currently exposes branch-610 `nvidia-open`
-`610.43.02-1ubuntu1`, so the profile uses that available version and keeps acceptance
-minimum `610.43.02`. CUDA toolkit remains `cuda-toolkit-13-3=13.3.1-1`.
+## Next executable boundary
 
-## Next executable boundary — finish VM 320 guest construction
+Resume directly from the prepared VM 320:
 
-No CUDA/NVIDIA guest packages have yet been installed and the 160 GiB model disk is
-still unformatted.
-
-The next play should:
-
-1. verify first-boot Ubuntu 26.04, both static addresses, SSH access, and raw RTX PCI
-   visibility inside VM 320;
-2. record Secure Boot state before DKMS installation;
-3. run `bootstrap/prepare-model-disk.sh --dry-run`, review the one detected ~160 GiB
-   disk, then apply it;
-4. transfer the current repository snapshot from hv-katra into `/srv/cuda-compute`
-   without GitHub credentials;
-5. run the RTX profile bootstrap dry-run;
-6. apply the bounded NVIDIA/CUDA/Ollama/llama.cpp installation;
-7. reboot VM 320;
-8. run smoke and hardware acceptance after the reboot;
+1. sync the updated branch and transfer the refreshed source snapshot to the guest;
+2. run regression/syntax checks;
+3. run the RTX installer dry-run and require the exact live candidates above with no
+   removals;
+4. apply the install;
+5. reboot;
+6. prove NVIDIA/CUDA hardware execution;
+7. enable Ollama only after GPU smoke passes;
+8. run appliance/inference acceptance;
 9. finalize instance state only after acceptance passes.
 
-The earlier full transitive-package closure experiment remains historical evidence and
-is not a deployment prerequisite.
-
-## Other GPU families
-
-- RX 9070 XT: Ubuntu 26.04 / ROCm 7.14 / `gfx1201`; design-stage until local testing.
-- future Arc Pro B70: may use the Ubuntu 26.04 modern template when a B70 is local.
-- Quadro P6000: legacy Ubuntu 24.04 disposable root/template only when actually tested.
+Do not redo networking, evidence sealing, model-disk formatting, VM construction, or
+host passthrough setup.
