@@ -1,0 +1,23 @@
+profile:
+  id: generic-template
+  version: 0.4.0
+  status: template-only
+  description: Hardware-neutral Ubuntu 26.04 compute appliance template
+
+os:
+  family: ubuntu
+  version: "26.04"
+
+stack:
+  kind: none
+
+compute:
+  fallback_policy: reject
+
+storage:
+  models_mount: /mnt/models
+  models_source: deployment-required
+  min_free_gib: 20
+  min_free_percent: 20
+
+required_tests: []

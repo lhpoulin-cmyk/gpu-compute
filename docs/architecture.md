@@ -45,7 +45,7 @@ hv-katra: nvme0n1 (SN5100 1TB, serial 26100U800434)
     └── partition 1: 256 GiB (GPT/LVM)
           └── cuda-katra-vg / cuda-katra-thin
                 ├── VM 9320 root: 32 GiB (temporary template, 90-day retention)
-                ├── VM 320 root: 32 GiB
+                ├── VM 320 root: 64 GiB
                 └── VM 320 scsi1: 160 GiB
                       └── ext4 LABEL=cuda-models
                             └── /mnt/models

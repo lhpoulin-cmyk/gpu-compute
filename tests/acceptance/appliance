@@ -37,7 +37,7 @@ check "Ollama version pinned $expected_ollama" bash -c "ollama --version 2>&1 | 
 check "llama.cpp ref pinned $expected_llama_ref" bash -c "test -r /usr/local/share/cuda-compute/llama-cpp-ref && grep -Fxq '$expected_llama_ref' /usr/local/share/cuda-compute/llama-cpp-ref"
 check "llama.cpp CUDA device visible" bash -c "llama-cli --list-devices 2>&1 | grep -Eq 'CUDA0:.*5070 Ti'"
 
-check "/mnt/models writable" bash -c 'touch /mnt/models/.write-test && rm /mnt/models/.write-test'
+check "/mnt/models/output writable" bash -c 'touch /mnt/models/output/.write-test && rm /mnt/models/output/.write-test'
 check "storage reserve >= 20 GiB" bash -c 'df --output=avail -BG /mnt/models | tail -1 | tr -d "G " | awk "{exit (\$1 < 20)}"'
 
 smoke_model=llama3.2:1b

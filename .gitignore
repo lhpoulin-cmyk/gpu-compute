@@ -1,4 +1,11 @@
-evidence/
+evidence/*
+!evidence/encrypted/
+evidence/encrypted/*
+!evidence/encrypted/*.sops.json
+!evidence/encrypted/README.md
+evidence/20260809-vm320-guest-network-recovery/
+evidence/encrypted/*.tar
+evidence/encrypted/*.tar.zst
 .cache/
 jobs/*/
 logs/

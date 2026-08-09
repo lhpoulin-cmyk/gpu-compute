@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Shared helpers for proxmox scripts.
+# Shared helpers for Proxmox host scripts.
+
+# Proxmox administrative commands normally live in /usr/sbin. Some operator
+# shells inherited on hv-katra omit sbin directories even when running as root.
+# Normalize PATH for reviewed host tooling instead of treating that shell detail
+# as an execution blocker.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 yaml_value() {
   local file=$1; shift
@@ -45,4 +51,5 @@ shell_join() {
 require_proxmox_host() {
   command -v qm >/dev/null 2>&1 || { echo "qm not found; run on Proxmox host" >&2; exit 69; }
   command -v pvesh >/dev/null 2>&1 || { echo "pvesh not found" >&2; exit 69; }
+  command -v pvesm >/dev/null 2>&1 || { echo "pvesm not found" >&2; exit 69; }
 }

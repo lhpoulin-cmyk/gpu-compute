@@ -5,129 +5,90 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$script_dir/profile-lib.sh"
 
 profile= apply=false template_mode=false
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --profile)       profile=${2:?}; shift 2 ;;
-    --dry-run)       apply=false; shift ;;
-    --apply)         apply=true; shift ;;
+    --profile) profile=${2:?}; shift 2 ;;
+    --dry-run) apply=false; shift ;;
+    --apply) apply=true; shift ;;
     --template-mode) template_mode=true; shift ;;
     *) echo "usage: packages.sh --profile FILE [--dry-run|--apply] [--template-mode]" >&2; exit 64 ;;
   esac
 done
-
 [[ -r "$profile" ]] || { echo "profile required" >&2; exit 66; }
 
-cuda_pkg=$(yaml_value "$profile" cuda toolkit_package)
-cuda_version=$(yaml_value "$profile" cuda pinned_version)
-repo_distro=$(yaml_value "$profile" cuda repository_distro)
-repo_arch=$(yaml_value "$profile" cuda repository_arch)
-keyring_pkg=$(yaml_value "$profile" cuda repository_keyring_package)
-ollama_version=$(yaml_value "$profile" ollama version)
-llama_repo=$(yaml_value "$profile" llama_cpp repository)
-llama_ref=$(yaml_value "$profile" llama_cpp ref)
-llama_arch=$(yaml_value "$profile" llama_cpp cuda_architectures)
-llama_prefix=$(yaml_value "$profile" llama_cpp install_prefix)
+stack=$(yaml_value "$profile" stack kind)
+os_version=$(yaml_value "$profile" os version)
+[[ -n "$stack" && -n "$os_version" ]] || { echo "profile must declare stack.kind and os.version" >&2; exit 65; }
 
-for value in "$cuda_pkg" "$cuda_version" "$repo_distro" "$repo_arch" "$keyring_pkg" \
-             "$ollama_version" "$llama_repo" "$llama_ref" "$llama_arch" "$llama_prefix"; do
-  [[ -n "$value" && "$value" != "deployment-required" ]] || {
-    echo "incomplete software pinning in profile: $profile" >&2
-    exit 65
-  }
-done
+common_packages=(ca-certificates curl git htop libvulkan1 mokutil pciutils python3-yaml vulkan-tools wget zstd)
+build_packages=(build-essential cmake libcurl4-openssl-dev ninja-build pkg-config)
 
-packages=(
-  build-essential
-  ca-certificates
-  cmake
-  curl
-  git
-  gnupg
-  htop
-  libcurl4-openssl-dev
-  libvulkan1
-  ninja-build
-  pciutils
-  pkg-config
-  python3-yaml
-  vulkan-tools
-  wget
-  zstd
-)
+echo "# profile stack: $stack"
+echo "# required Ubuntu: $os_version"
+echo "# common packages: ${common_packages[*]}"
+echo "# build packages: ${build_packages[*]}"
 
-echo "# base packages: ${packages[*]}"
-echo "# CUDA toolkit: $cuda_pkg (pinned branch $cuda_version)"
-echo "# NVIDIA repository: $repo_distro/$repo_arch"
-echo "# Ollama: $ollama_version"
-echo "# llama.cpp: $llama_ref, CUDA architecture $llama_arch"
-$template_mode && echo "# template mode: software installed, GPU driver activation/service start deferred"
+if ! $apply; then
+  echo "dry-run: would apt-simulate/install common guest/build prerequisites"
+  if ! $template_mode; then
+    case "$stack" in
+      nvidia-cuda-modern) "$script_dir/stack-nvidia-modern.sh" --profile "$profile" --dry-run ;;
+      nvidia-cuda-pascal) echo "dry-run: legacy Pascal stack is design-stage and not executable" ;;
+      amd-rocm) echo "dry-run: AMD ROCm stack is design-stage and not executable" ;;
+      none) echo "dry-run: no vendor GPU stack selected" ;;
+      *) echo "unsupported stack.kind: $stack" >&2; exit 69 ;;
+    esac
+  fi
+  exit 0
+fi
 
-$apply || { echo "dry-run: no package or repository changes"; exit 0; }
-
-[[ $(uname -m) == x86_64 ]] || { echo "this profile requires x86_64" >&2; exit 69; }
+[[ $EUID -eq 0 ]] || { echo "apply requires root" >&2; exit 77; }
+[[ $(uname -m) == x86_64 ]] || { echo "this appliance requires x86_64" >&2; exit 69; }
 # shellcheck disable=SC1091
 source /etc/os-release
-[[ "${ID:-}" == ubuntu && "${VERSION_ID:-}" == 26.04 ]] || {
-  echo "this profile is pinned to Ubuntu 26.04; observed ${ID:-unknown} ${VERSION_ID:-unknown}" >&2
+[[ "${ID:-}" == ubuntu && "${VERSION_ID:-}" == "$os_version" ]] || {
+  echo "profile requires Ubuntu $os_version; observed ${ID:-unknown} ${VERSION_ID:-unknown}" >&2
   exit 69
 }
 
+install -d -m 0755 /var/lib/cuda-compute
 apt-get update -q
-apt-get install -y --no-install-recommends "${packages[@]}"
-
-if [[ ! -f /usr/share/keyrings/cuda-archive-keyring.gpg || ! -f /etc/apt/sources.list.d/cuda-${repo_distro}-x86_64.list ]]; then
-  tmpdir=$(mktemp -d)
-  trap 'rm -rf "$tmpdir"' EXIT
-  keyring_url="https://developer.download.nvidia.com/compute/cuda/repos/${repo_distro}/x86_64/${keyring_pkg}"
-  wget -q "$keyring_url" -O "$tmpdir/$keyring_pkg"
-  dpkg -i "$tmpdir/$keyring_pkg"
-fi
-apt-get update -q
-apt-get install -y --no-install-recommends "$cuda_pkg"
-# Hold the toolkit meta-package on the selected 13.3 branch. Component updates inside
-# that branch remain controlled by the package's exact dependencies.
-apt-mark hold "$cuda_pkg" >/dev/null
-
-# Install a specific Ollama release. The upstream installer supports OLLAMA_VERSION.
-if ! command -v ollama >/dev/null 2>&1 || ! ollama --version 2>&1 | grep -Fq "$ollama_version"; then
-  tmp_ollama=$(mktemp)
-  curl -fsSL https://ollama.com/install.sh -o "$tmp_ollama"
-  OLLAMA_VERSION="$ollama_version" sh "$tmp_ollama"
-  rm -f "$tmp_ollama"
-fi
-ollama --version 2>&1 | grep -Fq "$ollama_version" || {
-  echo "Ollama version mismatch; expected $ollama_version" >&2
+base_sim=/var/lib/cuda-compute/base-apt-simulation.txt
+apt-get -s install --no-install-recommends "${common_packages[@]}" "${build_packages[@]}" | tee "$base_sim"
+if grep -Eq '^Remv ' "$base_sim"; then
+  echo "base package simulation proposes removals; refusing" >&2
+  grep '^Remv ' "$base_sim" >&2
   exit 69
-}
-
-# Build llama.cpp at the pinned release tag with an explicit Blackwell sm_120 CUDA backend.
-# Do not infer the source ref from llama-cli --version: upstream version output is not
-# guaranteed to contain the tag. Persist the exact installed ref as appliance evidence.
-llama_marker=/usr/local/share/cuda-compute/llama-cpp-ref
-installed_llama_ref=""
-[[ -r "$llama_marker" ]] && installed_llama_ref=$(<"$llama_marker")
-if ! command -v llama-cli >/dev/null 2>&1 || [[ "$installed_llama_ref" != "$llama_ref" ]]; then
-  build_root=/usr/local/src/llama.cpp-${llama_ref}
-  rm -rf "$build_root"
-  git clone --depth 1 --branch "$llama_ref" "$llama_repo" "$build_root"
-  cmake -S "$build_root" -B "$build_root/build" -G Ninja \
-    -DGGML_CUDA=ON \
-    -DCMAKE_CUDA_ARCHITECTURES="$llama_arch" \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DLLAMA_BUILD_TESTS=OFF
-  cmake --build "$build_root/build" --parallel
-  cmake --install "$build_root/build" --prefix "$llama_prefix"
-  install -d -m 0755 "$(dirname "$llama_marker")"
-  printf '%s\n' "$llama_ref" > "$llama_marker"
-  chmod 0644 "$llama_marker"
 fi
-command -v llama-cli >/dev/null 2>&1 || { echo "llama-cli installation failed" >&2; exit 69; }
-command -v llama-server >/dev/null 2>&1 || { echo "llama-server installation failed" >&2; exit 69; }
-[[ -r "$llama_marker" ]] && [[ "$(<"$llama_marker")" == "$llama_ref" ]] || { echo "llama.cpp ref marker mismatch" >&2; exit 69; }
+apt-get install -y --no-install-recommends "${common_packages[@]}" "${build_packages[@]}"
 
-if $template_mode && systemctl list-unit-files ollama.service >/dev/null 2>&1; then
-  systemctl disable --now ollama.service >/dev/null 2>&1 || true
+if command -v mokutil >/dev/null 2>&1; then
+  mokutil --sb-state 2>&1 | tee /var/lib/cuda-compute/secure-boot-state.txt || true
 fi
 
-echo "software packages installed at pinned appliance versions"
+if $template_mode; then
+  dpkg-query -W > /var/lib/cuda-compute/template-package-versions.txt
+  echo "template prerequisites installed; no vendor GPU stack installed"
+  exit 0
+fi
+
+case "$stack" in
+  nvidia-cuda-modern)
+    exec "$script_dir/stack-nvidia-modern.sh" --profile "$profile" --apply
+    ;;
+  nvidia-cuda-pascal)
+    echo "legacy Pascal stack is not executable on the modern Ubuntu 26.04 instance" >&2
+    exit 69
+    ;;
+  amd-rocm)
+    echo "AMD ROCm stack remains design-stage until local RX 9070 XT testing" >&2
+    exit 69
+    ;;
+  none)
+    echo "no vendor GPU stack selected"
+    ;;
+  *)
+    echo "unsupported stack.kind: $stack" >&2
+    exit 69
+    ;;
+esac

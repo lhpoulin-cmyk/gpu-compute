@@ -1,8 +1,8 @@
-# cuda-compute Ownership Contract
+# gpu-compute Ownership Contract
 
 ## Purpose
 
-`cuda-compute` owns the compute appliance between verified model intake and a
+`gpu-compute` owns the compute appliance between verified model intake and a
 validated inference result or compute output suitable for downstream consumption.
 
 Its conceptual input boundary is `MODEL_READY`.
@@ -22,7 +22,7 @@ Detailed appliance and security behavior remains governed by:
 This document summarizes repository ownership and must not silently override
 those contracts.
 
-## Owned by cuda-compute
+## Owned by gpu-compute
 
 - Validation of an explicitly supplied model and inference request.
 - Creation and tracking of compute jobs.
@@ -35,9 +35,9 @@ those contracts.
 - Manifest production through the repository's versioned manifest machinery.
 - Tests proving inference, validation, and fail-closed behavior.
 
-## Not owned by cuda-compute
+## Not owned by gpu-compute
 
-`cuda-compute` does not:
+`gpu-compute` does not:
 
 - Pull, curate, or canonically store model weights.
 - Own model identity, quantization selection, or provenance outside of the
@@ -54,7 +54,7 @@ those contracts.
 - `cuda-compute-katra` is the CUDA compute appliance and current reference.
 - The passed-through NVIDIA GeForce RTX 5070 Ti is owned by this appliance.
 - `hv-katra` owns the physical NVMe and host LVM-thin storage. The authorized 256 GiB allocation is external infrastructure.
-- `cuda-compute` may consume virtual disks from `cuda-katra`. An explicitly
+- `gpu-compute` may consume virtual disks from `cuda-katra`. An explicitly
   operator-authorized host-side play may perform the exact approved host
   partition/LVM mutation; that execution authority does not transfer ongoing
   infrastructure ownership to the repository or guest runtime.
@@ -62,18 +62,18 @@ those contracts.
 ## Upstream boundary
 
 ```text
-operator --MODEL_READY--> cuda-compute
+operator --MODEL_READY--> gpu-compute
 ```
 
 The operator supplies a validated model path, quantization, and request.
-`cuda-compute` independently validates the model integrity and request before
+`gpu-compute` independently validates the model integrity and request before
 beginning work. It must fail closed when the model, request, or evidence is
 incomplete.
 
 ## Downstream boundary
 
 ```text
-cuda-compute --OUTPUT_VALIDATED--> downstream consumer
+gpu-compute --OUTPUT_VALIDATED--> downstream consumer
 ```
 
 A completed output may be used downstream only after validation passes and the

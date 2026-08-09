@@ -30,11 +30,19 @@ Authorized CUDA allocation:
 - Thin pool: `cuda-katra-thin`
 - Proxmox storage ID: `cuda-katra`
 - VM 9320 root disk: 32 GiB on `cuda-katra`
-- VM 320 root disk: 32 GiB on `cuda-katra`
+- VM 320 root disk: 64 GiB on `cuda-katra`
 - VM 320 model disk: 160 GiB on `cuda-katra`
 - Guest mount: `LABEL=cuda-models` → `/mnt/models`
 
-The remaining physical SN5100 capacity stays unpartitioned and operator-reserved. `cuda-compute` may not consume it without separate authorization.
+The remaining physical SN5100 capacity stays unpartitioned and operator-reserved. `gpu-compute` may not consume it without separate authorization.
+
+## Backing-store independence
+
+`/mnt/models` and `LABEL=cuda-models` are the durable compute interface. The
+current `cuda-katra` LVM-thin backend is accepted historical infrastructure;
+future ZFS, Ceph RBD, or other approved Proxmox block storage must preserve the
+logical guest mount contract. A backend transition is separate storage
+acceptance/migration work and does not authorize application redesign.
 
 ## Template policy
 

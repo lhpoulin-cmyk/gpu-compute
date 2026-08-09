@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 profile="$root/config/active-hardware-profile.yaml"
-[[ -r "$profile" ]] || profile="$root/config/profiles/nvidia-rtx5070ti/profile.yaml"
+[[ -r "$profile" ]] || profile="$root/profiles/nvidia-rtx5070ti/profile.yaml"
 
 pyval() {
   local expr=$1
@@ -22,6 +22,8 @@ expected_model=$(pyval device.expected_model 2>/dev/null || pyval device.observe
 expected_cap=$(pyval device.compute_capability 2>/dev/null || pyval device.observed_compute_capability)
 expected_cuda=$(pyval cuda.pinned_version 2>/dev/null || pyval cuda.observed_version)
 min_driver=$(pyval cuda.minimum_driver 2>/dev/null || true)
+cuda_root="/usr/local/cuda-${expected_cuda}"
+nvcc="$cuda_root/bin/nvcc"
 
 failures=0
 check() { local label=$1; shift; "$@" >/dev/null 2>&1 && printf '[PASS] %s\n' "$label" || { printf '[FAIL] %s\n' "$label" >&2; failures=$((failures + 1)); }; }
@@ -48,7 +50,7 @@ check "nvidia-smi reports expected GPU" bash -c "nvidia-smi --query-gpu=name --f
 check "compute capability is $expected_cap" bash -c "nvidia-smi --query-gpu=compute_cap --format=csv,noheader | grep -Fxq '$expected_cap'"
 check "/dev/nvidiactl present" test -e /dev/nvidiactl
 check "/dev/nvidia-uvm present" test -e /dev/nvidia-uvm
-check "nvcc available" command -v nvcc
+check "pinned nvcc available" test -x "$nvcc"
 check "CUDA toolkit pinned to $expected_cuda" bash -c "nvcc --version | grep -Eq 'release ${expected_cuda//./\\.}([, ]|$)'"
 check "vulkaninfo reports NVIDIA" bash -c 'vulkaninfo --summary 2>/dev/null | grep -qi nvidia'
 check "libcuda loadable" python3 -c "import ctypes; ctypes.CDLL('libcuda.so.1')"
@@ -83,7 +85,7 @@ int main() {
   return h == 42 ? 0 : 7;
 }
 CU
-if nvcc -O2 "$tmpdir/probe.cu" -o "$tmpdir/probe" >/dev/null 2>&1 && \
+if "$nvcc" -O2 -arch=sm_120 "$tmpdir/probe.cu" -o "$tmpdir/probe" >/dev/null 2>&1 && \
    probe_output=$($tmpdir/probe 2>&1) && grep -Fq "compute_cap=$expected_cap" <<<"$probe_output"; then
   printf '[PASS] compiled CUDA kernel executes on compute capability %s\n' "$expected_cap"
 else

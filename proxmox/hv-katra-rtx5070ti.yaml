@@ -1,0 +1,38 @@
+appliance:
+  template_vmid: 9320
+  release: development
+
+instance:
+  vmid: 320
+  name: cuda-compute-katra
+  node: hv-katra
+  cores: 8
+  memory_mb: 16384
+  cloud_init_user: louis
+
+virtualization:
+  primary_bridge: vmbr0
+  secondary_bridge: vmbr1
+  secondary_mtu: 9000
+
+network:
+  primary_ipv4: 192.168.10.92/24
+  primary_gateway: 192.168.10.1
+  secondary_ipv4: 192.168.100.92/24
+  dns_servers: "192.168.10.250 192.168.10.251"
+  search_domain: home.arpa
+
+gpu:
+  profile: nvidia-rtx5070ti
+  host_compute_function: "0000:01:00.0"
+  host_audio_function: "0000:01:00.1"
+  expected_compute_pci_id: "10de:2c05"
+  expected_audio_pci_id: "10de:22e9"
+  expected_host_driver: vfio-pci
+
+storage:
+  pve_storage_id: cuda-katra
+  root_disk_size_gib: 64
+  models_disk_size_gib: 160
+  models_label: cuda-models
+  models_mount: /mnt/models

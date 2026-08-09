@@ -1,0 +1,51 @@
+profile:
+  id: nvidia-p6000
+  version: 0.2.0
+  status: legacy-design-only
+  description: NVIDIA Quadro P6000 Pascal compatibility profile; requires a separate Ubuntu 24.04 root/template when tested
+
+os:
+  family: ubuntu
+  version: "24.04"
+  template_family: legacy-separate-root
+
+stack:
+  kind: nvidia-cuda-pascal
+
+device:
+  expected_vendor: NVIDIA
+  expected_model: Quadro P6000
+  expected_kernel_driver: nvidia
+  compute_capability: "6.1"
+  vram_gib: 24
+
+cuda:
+  pinned_version: "12.9"
+  toolkit_package: cuda-toolkit-12-9
+  driver_branch: "580"
+  kernel_module_flavor: proprietary
+
+compute:
+  production:
+    - llama-cpp
+  optional:
+    - ollama
+  fallback_policy: reject
+
+llama_cpp:
+  ref: b10173
+  commit: e9fa0781f1c25fc4fe8c86be1edc6970661ad6f0
+  repository: https://github.com/ggml-org/llama.cpp.git
+  cuda_architectures: "61"
+  install_prefix: /usr/local
+
+storage:
+  models_mount: /mnt/models
+  models_source: deployment-required
+  min_free_gib: 20
+  min_free_percent: 20
+
+required_tests:
+  - smoke/appliance
+  - smoke/cuda-nvidia
+  - acceptance/appliance

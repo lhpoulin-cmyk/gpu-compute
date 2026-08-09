@@ -1,40 +1,53 @@
-# Helix-ARPA CUDA Compute Appliance
+# Helix-ARPA gpu-compute Appliance
 
-This repository is the source of truth for a reusable, dedicated NVIDIA GPU
-compute appliance. It contains policy, bootstrap logic, hardware profiles,
-operator commands, cloud-init examples, validation tests, evidence references,
-and reviewed Proxmox deployment tooling.
+This repository is the source of truth for a reusable GPU compute appliance on
+`hv-katra`. It contains policy, bootstrap logic, hardware profiles, operator commands,
+validation tests, evidence references, and reviewed Proxmox deployment tooling.
 
-The appliance has three deliberately separate layers:
+`cuda-compute` was the original NVIDIA/CUDA implementation that established
+the first accepted gpu-compute appliance. Historical CUDA names remain valid
+provenance; the active appliance authority is now vendor-agnostic gpu-compute.
+
+The appliance separates operating-system roots from durable workload data:
 
 ```text
-VM 320                 working hv-katra CUDA compute reference implementation
-this Git repository    authoritative reusable appliance source
-VM 9320                temporary clean generic Ubuntu template (90-day retention)
+VM 9320              accepted hardware-neutral Ubuntu 26.04 modern template
+VM 320 root          disposable per-GPU software/driver instance
+VM 320 model disk    durable model/data volume preserved across rebuilds
 ```
 
-VM 320 proves the contract and remains a normal production VM. It is never the
-clone source. VM 9320 contains no GPU, raw disk, instance identity, credentials,
-or model data. A private deployment profile assigns the real host, GPU resource
-mapping, Proxmox storage, network, and identity to a clone. Acceptance tests then
-promote that clone into an appliance.
+VM 9320 is an accepted Canonical cloud-image template. VM 320 is now running as the
+RTX 5070 Ti reference candidate with all virtual disks on `cuda-katra`, dual static
+NICs, and direct passthrough of host PCI function `0000:01:00.0`.
 
-The hv-katra reference profile is pinned to Ubuntu 26.04, NVIDIA open kernel
-modules, CUDA toolkit 13.3, RTX 5070 Ti compute capability 12.0, Ollama 0.32.0,
-and llama.cpp ref `b10173` built for `sm_120`. Production GPU use is explicit
-through `/dev/nvidia0`; CPU fallback is rejected unless a future profile
-explicitly authorizes it. Vulkan is validated as an auxiliary compute path.
+Modern target profiles are:
 
-Katra storage is intentionally isolated from its boot pool: the appliance uses
-the dedicated `cuda-katra` LVM-thin store on the approved 256 GiB allocation of
-the Sandisk Optimus 5100. VM 320 receives separate root and model/data virtual
-disks from that store; the host NVMe is not raw-passed into the guest.
+- NVIDIA GeForce RTX 5070 Ti — Ubuntu 26.04, CUDA 13.3, `sm_120`, open kernel modules.
+- AMD Radeon RX 9070 XT — Ubuntu 26.04, ROCm 7.14, `gfx1201` (design-stage until locally tested).
+- Future Intel Arc Pro B70 work may reuse the Ubuntu 26.04 template when a B70 is local.
 
-Operator entry points are `bin/doctor`, `bin/probe`, `bin/run`,
-`bin/validate-output`, and `bin/collect-evidence`. Bootstrap begins with
-`bootstrap/install.sh --dry-run --profile config/profiles/nvidia-rtx5070ti/profile.yaml`.
-Host-side scripts under `proxmox/` render or perform only explicitly authorized
-Proxmox operations; they must not be executed from VM 320.
+Legacy compatibility is separate:
 
-Read `AGENTS.md`, `CODEX-HANDOFF.md`, `docs/appliance-contract.md`, and
-`docs/reference-implementation.md` before changing a deployed instance.
+- NVIDIA Quadro P6000 — Pascal, CUDA 12.9, `sm_61`, proprietary R580 branch, separate Ubuntu 24.04 root/template when tested.
+
+The current RTX 5070 Ti guest path is implemented in `bootstrap/`: guarded model-disk
+preparation, official NVIDIA Ubuntu repository setup, bounded APT simulation,
+`nvidia-open`, CUDA 13.3, verified Ollama 0.32.0 installation, and pinned llama.cpp
+`b10173` build for `sm_120`. Ollama stays disabled until the post-reboot GPU smoke test
+passes so CPU fallback cannot silently become the service path.
+
+Katra storage remains isolated from its boot pool: the appliance uses the dedicated
+`cuda-katra` LVM-thin store on the approved 256 GiB allocation of the Sandisk Optimus
+5100. The host NVMe is not raw-passed into the guest.
+
+The durable compute interface is `/mnt/models` with filesystem label
+`cuda-models`. Its contract is independent of the Proxmox backing store:
+`cuda-katra` is the accepted LVM-thin implementation today, while a later ZFS
+or Ceph RBD transition is storage migration work—not application redesign.
+
+The abandoned full transitive-package closure experiment is historical evidence, not
+a deployment gate. Use trusted vendor sources, bounded transaction simulation,
+high-value pins, exact installed-version recording, and live hardware acceptance.
+
+Read `AGENTS.md`, `CODEX-HANDOFF.md`, `CURRENT_STATE.md`, `docs/deployment.md`, and
+`docs/gpu-swap.md` before deployment work.
