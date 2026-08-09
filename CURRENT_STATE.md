@@ -13,7 +13,7 @@ bridges remain healthy (`vmbr1` MTU 9000).
 
 ## Phase 3 accepted result
 
-VM 9320 now exists as the modern unbooted hardware-neutral Ubuntu 26.04 template:
+VM 9320 exists as the modern unbooted hardware-neutral Ubuntu 26.04 template:
 
 - VMID: 9320
 - name: `tpl-compute-ubuntu2604-20260808`
@@ -38,14 +38,9 @@ thin LV. The underlying process continued normally. The journal later showed scs
 attachment, resize, EFI/cloud-init creation, and successful `qm template 9320`
 completion at 23:21:53. No retry, process termination, cleanup, or repair was required.
 
-Post-construction LVM state is healthy:
-
-- `base-9320-disk-0` exists as a 32 GiB thin LV
-- thin pool `cuda-katra-thin`: Data% 0.86, Meta% 10.64
-- thin-pool monitoring: enabled
-- `dm-event.service`: active/running
-- `lvm2-monitor.service`: active/exited
-- no kernel I/O or NVMe errors observed
+Post-construction LVM state was healthy: `base-9320-disk-0` exists as a 32 GiB thin LV,
+`cuda-katra-thin` was Data% 0.86 / Meta% 10.64, monitoring was enabled, and no kernel
+I/O or NVMe errors were observed.
 
 ## Construction doctrine
 
@@ -61,6 +56,22 @@ For deployed guests use the proven appliance pattern: trusted OS/vendor sources,
 bounded package simulation, refusal of dangerous removals, high-value top-level pins,
 recorded installed versions, and live hardware acceptance.
 
+## Phase 4 preparation status
+
+The repository deployment surface for the RTX 5070 Ti reference VM is now implemented.
+
+Authoritative inputs:
+
+- `proxmox/hv-katra-rtx5070ti.yaml` — concrete non-secret VM 320 deployment profile;
+- `proxmox/deploy-instance.sh` — standard Proxmox cloud-init deployment path;
+- `tests/unit/deployment-contract.sh` — regression contract for the VM 320 profile;
+- `docs/deployment.md` — operator deployment and first-boot boundary.
+
+The old `proxmox/example-profile.yaml` is retired example material. The deployment no
+longer depends on committed custom cloud-init snippets, Ubuntu ISO fields, repository
+placeholders, or private deployment files. Operator SSH access is supplied at runtime
+using an external SSH public-key file.
+
 ## GPU families
 
 The modern Ubuntu 26.04 template is intended for:
@@ -73,20 +84,26 @@ The Quadro P6000 remains legacy compatibility only. Its Pascal CUDA 12.9 / R580
 profile requires a separate Ubuntu 24.04 disposable root/template when actually
 tested.
 
-## Next executable boundary — reference VM 320
+## Next executable boundary — create reference VM 320
 
-The next phase is deployment of VM 320 on `hv-katra` with the RTX 5070 Ti:
+The next phase is the live deployment of VM 320 on `hv-katra` with the RTX 5070 Ti:
 
 - VMID: 320
-- hostname: `cuda-compute-katra`
+- hostname/name: `cuda-compute-katra`
 - 8 vCPU / 16 GiB RAM
 - full clone from VM 9320, root remaining on `cuda-katra`
-- model/data disk: 160 GiB on `cuda-katra`, label `cuda-models`, mount `/mnt/models`
+- model/data disk: 160 GiB on `cuda-katra`, future label `cuda-models`, future mount `/mnt/models`
 - `192.168.10.92/24` on `vmbr0`, gateway `192.168.10.1`
 - `192.168.100.92/24` on `vmbr1`, MTU 9000, no gateway
 - DNS: `192.168.10.250`, `192.168.10.251`
+- search domain: `home.arpa`
 - logical GPU mapping: `gpu-compute-rtx5070ti`
 
-The deployed clone receives the repository, model storage, production network identity,
-NVIDIA/CUDA software, Ollama, llama.cpp, and live acceptance. Acceptance—not cloning or
-driver installation—promotes VM 320 into the reference appliance.
+Before mutation, run the repository regression tests and a complete deployment
+dry-run with an operator-owned SSH public-key file. The live deployment may then clone,
+configure, attach the logical GPU mapping, and start VM 320. Formatting the model disk,
+transferring repository source, installing CUDA/NVIDIA software, and acceptance remain
+separate post-boot gates.
+
+Acceptance—not cloning or driver installation—promotes VM 320 into the reference
+appliance.
