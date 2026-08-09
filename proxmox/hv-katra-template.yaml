@@ -1,0 +1,30 @@
+appliance:
+  template_vmid: 9320
+  template_name: tpl-compute-ubuntu2404-20260808
+  template_retention_days: 90
+  release: development
+  repository: https://github.com/lhpoulin-cmyk/cuda-compute
+
+instance:
+  node: hv-katra
+  cores: 8
+  memory_mb: 16384
+
+virtualization:
+  machine: q35
+  primary_bridge: vmbr0
+
+storage:
+  pve_storage_id: cuda-katra
+  os_disk_size_gib: 32
+
+source:
+  family: ubuntu-cloud-image
+  release: "24.04"
+  series: noble
+  architecture: amd64
+  artifact: ubuntu-24.04-server-cloudimg-amd64.img
+  verification: canonical-signed-sha256sums
+
+bootstrap:
+  profile: config/profiles/generic/profile.yaml
