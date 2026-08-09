@@ -51,6 +51,9 @@ ssh "$guest" 'uname -a; echo; nvidia-smi -q -d TEMPERATURE,POWER,PERFORMANCE,CLO
 host_tsv="$out/host-temps.tsv"
 printf 'epoch_ms\tiso8601\thwmon\tchip\tlabel\ttemp_c\n' > "$host_tsv"
 
+fan_tsv="$out/host-fans.tsv"
+printf 'epoch_ms\tiso8601\thwmon\tchip\tlabel\trpm\n' > "$fan_tsv"
+
 gpu_csv="$out/gpu.csv"
 printf 'timestamp,name,temperature.gpu,temperature.memory,utilization.gpu,utilization.memory,fan.speed,power.draw,pstate,clocks.gr,clocks.mem,memory.used,memory.total\n' > "$gpu_csv"
 
@@ -76,6 +79,19 @@ collect_host() {
         [[ "$raw" =~ ^-?[0-9]+$ ]] || continue
         temp=$(awk -v x="$raw" 'BEGIN { printf "%.3f", x/1000.0 }')
         printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$epoch" "$iso" "$(basename "$hw")" "$chip" "$sensor_label" "$temp" >> "$host_tsv"
+      done
+      for input in "$hw"/fan*_input; do
+        [[ -r "$input" ]] || continue
+        stem=${input%_input}
+        label_file="${stem}_label"
+        if [[ -r "$label_file" ]]; then
+          sensor_label=$(<"$label_file")
+        else
+          sensor_label=$(basename "$stem")
+        fi
+        raw=$(<"$input")
+        [[ "$raw" =~ ^[0-9]+$ ]] || continue
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$epoch" "$iso" "$(basename "$hw")" "$chip" "$sensor_label" "$raw" >> "$fan_tsv"
       done
     done
     sleep "$interval"
