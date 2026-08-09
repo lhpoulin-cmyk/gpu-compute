@@ -1,9 +1,7 @@
 appliance:
   template_vmid: 9320
-  template_name: tpl-compute-ubuntu2404-20260808
+  template_name: tpl-compute-ubuntu2604-20260808
   template_retention_days: 90
-  release: development
-  repository: https://github.com/lhpoulin-cmyk/cuda-compute
 
 instance:
   node: hv-katra
@@ -20,11 +18,11 @@ storage:
 
 source:
   family: ubuntu-cloud-image
-  release: "24.04"
-  series: noble
+  release: "26.04"
+  image_serial: "20260612"
+  series: resolute
   architecture: amd64
-  artifact: ubuntu-24.04-server-cloudimg-amd64.img
-  verification: canonical-signed-sha256sums
-
-bootstrap:
-  profile: config/profiles/generic/profile.yaml
+  artifact: ubuntu-26.04-server-cloudimg-amd64.img
+  url: https://cloud-images.ubuntu.com/releases/server/26.04/release-20260612/ubuntu-26.04-server-cloudimg-amd64.img
+  sha256: 0c9fb915bab0b36b361d3bf8aeae2115dda19d81a306656964de048033481670
+  verification: previously-accepted-canonical-signed-sha256sums-plus-local-sha256
