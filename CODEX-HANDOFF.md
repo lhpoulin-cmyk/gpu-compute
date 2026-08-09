@@ -1,185 +1,156 @@
-# Codex handoff — hv-katra CUDA compute appliance
+# Codex handoff — hv-katra GPU compute appliance
 
 ## Scope
 
-Bring up the reusable CUDA compute appliance on `hv-katra` from this repository.
-Do not improvise host storage, PCI identity, network identity, or software
-versions. Fresh 2026-08-08 LifeTap evidence is the deployment baseline.
+Continue the reusable GPU compute appliance on `hv-katra` from the accepted host
+preparation state. Do not improvise storage, PCI identity, network identity, or
+hardware profiles. Use the repository's reviewed profiles and live preflight.
 
-## Evidence-backed hv-katra facts
-
-- Proxmox VE: 9.2.2
-- Kernel: 7.0.14-6-pve
-- CPU: Intel Core i7-9700KF, 8 logical CPUs
-- RAM: ~31.3 GiB
-- `vmbr0`: UP/LOWER_UP, `192.168.10.21/24`, MTU 1500
-- `vmbr1`: UP/LOWER_UP, `192.168.100.21/24`, MTU 9000; guest interfaces are forwarding
-- A stale boot-journal reference to `enp2s0` is configuration drift, not evidence that `vmbr1` is down.
-- RTX 5070 Ti compute function: `0000:01:00.0`, PCI ID `10de:2c05`
-- NVIDIA HDA companion function: `0000:01:00.1`, PCI ID `10de:22e9`
-- Both GPU functions are in IOMMU group 1.
-- Sandisk Optimus 5100 1TB: serial `26100U800434`, stable by-id
-  `nvme-Sandisk_Optimus_5100_1TB_26100U800434`; observed blank at capture time.
-
-The source evidence hash is recorded under `docs/evidence/`.
-
-## Frozen deployment contract
-
-### Host storage
-
-Allocate exactly the first 256 GiB of the blank Optimus 5100 to this appliance.
-Create Proxmox LVM-thin storage `cuda-katra` there. Leave the remaining device
-capacity untouched.
-
-- VM 9320 root disk: 32 GiB on `cuda-katra`; temporary template retained 90 days.
-- VM 320 root disk: 32 GiB on `cuda-katra`.
-- VM 320 model/data disk: 160 GiB on `cuda-katra`.
-- No substantial VM 320 disk allocation belongs on hv-katra's boot storage.
-- Do not raw-pass the NVMe or its partition into the guest.
-
-Use `proxmox/nvme-provision.sh` only after its preflight confirms the exact
-serial/by-id and that the target remains blank, unused, unmounted, unsigned,
-and outside existing LVM/Proxmox storage.
-
-### GPU passthrough
-
-Bind both IOMMU-group GPU functions to VFIO:
-
-```text
-10de:2c05  RTX 5070 Ti compute/display
-10de:22e9  NVIDIA HDA companion audio
-```
-
-Create logical Proxmox PCI mapping `gpu-compute-rtx5070ti` for the compute
-function `01:00.0`. The audio function is bound with the group and may remain
-parked unless later explicitly required by the guest. Do not substitute a
-hard-coded physical PCI address in the generic appliance source.
-
-### VM 320
-
-- VMID: 320
-- hostname: `cuda-compute-katra`
-- vCPU: 8
-- RAM: 16384 MiB
-- root disk: 32 GiB on `cuda-katra`
-- data disk: 160 GiB on `cuda-katra`, formatted in the guest and mounted at
-  `/mnt/models` by filesystem label
-- NIC 1: `vmbr0`, `192.168.10.92/24`, default gateway on this interface only
-- NIC 2: `vmbr1`, `192.168.100.92/24`, MTU 9000, no default gateway
-- DNS: `192.168.10.250`, `192.168.10.251`
-- search domain: `home.arpa`
-
-Deployment preflight must verify that both configured bridges are presently UP;
-for `vmbr1`, verify MTU >= 9000. Do not reinterpret the stale `enp2s0` journal
-message as bridge failure while the bridge itself is UP/LOWER_UP.
-
-## Frozen software stack
-
-- Guest OS: Ubuntu 26.04 LTS x86_64
-- NVIDIA package path: official CUDA network repository for `ubuntu2604`
-- NVIDIA driver package: `nvidia-open`
-- Required installed driver version: >= 610.43.02
-- CUDA toolkit: pinned 13.3 (`cuda-toolkit-13-3`)
-- RTX 5070 Ti required compute capability: 12.0
-- Ollama: 0.32.0
-- llama.cpp: `ggml-org/llama.cpp` ref `b10173`
-- llama.cpp CUDA architecture: 120 (`sm_120`)
-
-Do not float these versions during this installation. A future upgrade is a
-separate reviewed change.
-
-## Execution phases
-
-## Current checkpoint
+## Accepted host state
 
 - Phase 1 storage: **ACCEPTED**.
 - Phase 2 VFIO/reboot validation: **ACCEPTED**.
-- Phase 3 template build: **NOT STARTED**.
-- Phase 3A contract freeze: **BLOCKED**. Accepted Ubuntu/NVIDIA/Ollama/llama.cpp provenance is recorded in Phase 3A evidence; the isolated APT resolver must be corrected to use only Ubuntu snapshot `20260808T230000Z` before producing a CUDA closure lock.
+- Proxmox VE: 9.2.2; kernel: 7.0.14-6-pve.
+- `cuda-katra`: active LVM-thin on the exact approved 256 GiB SN5100 allocation.
+- remaining SN5100 capacity: 675.5 GiB unpartitioned.
+- `vmbr0`: operational at `192.168.10.21/24`.
+- `vmbr1`: operational at `192.168.100.21/24`, MTU 9000.
+- RTX 5070 Ti functions `01:00.0` and `01:00.1`: bound to `vfio-pci`.
+- upstream root port `00:01.0`: host-owned by `pcieport`.
 
-### Phase 0 — preflight only
+## Construction doctrine
 
-1. Verify fresh LifeTap evidence and its SHA-256.
-2. Verify current NVMe identity/state before any partition mutation.
-3. Verify `vmbr0` and `vmbr1` state and MTU.
-4. Verify RTX functions and IOMMU group.
-5. Verify no target VMID/storage/resource mapping conflict.
-6. Stop on any identity mismatch.
+The abandoned Phase 3A transitive-package-closure experiment is historical
+evidence, not a deployment gate. Do not resume it.
 
-### Phase 1 — host preparation
+Use the proven appliance construction pattern:
 
-1. Provision `cuda-katra` from the approved 256 GiB NVMe allocation.
-2. Configure VFIO for both NVIDIA functions and reboot if required.
-3. Prove both functions are bound as intended after reboot.
-4. Create/verify logical resource mapping `gpu-compute-rtx5070ti`.
+1. verified Ubuntu image;
+2. dry-run/simulate package actions;
+3. refuse dangerous removals or unexpected replacements;
+4. use official Ubuntu/vendor repositories;
+5. pin high-value top-level versions/branches where the profile requires it;
+6. record exact installed package versions;
+7. prove the hardware path with live acceptance.
 
-### Phase 2 — template 9320
+Do not require a cryptographic lock of every transitive Ubuntu/CUDA/ROCm package
+before constructing the template.
 
-Build a clean Ubuntu 26.04 VM with one 32 GiB root disk on `cuda-katra` and a
-single `vmbr0` NIC. It has no GPU, no model disk, no instance identity, and no
-model data.
+## Hardware-neutral template
 
-Run the repository installer in `--template-mode`. Template mode installs the
-pinned CUDA toolkit, Ollama release, and pinned llama.cpp build but does not
-require GPU presence, does not activate the NVIDIA driver for hardware that is
-not attached, and leaves Ollama disabled. Sanitize the template without deleting
-`BUILD`, then convert VM 9320 to a template.
+VM 9320 is the shared template for current GPU profiles:
 
-### Phase 3 — deploy VM 320
+- RTX 5070 Ti / Blackwell
+- RX 9070 XT / RDNA4
+- Quadro P6000 / Pascal
 
-Clone only from VM 9320 onto `cuda-katra`. Configure VM identity/resources,
-both NICs, logical GPU mapping, and the 160 GiB second virtual disk. Do not attach
-raw host NVMe storage.
+Template contract:
 
-Inside VM 320, format the second disk with the approved filesystem label and
-mount it at `/mnt/models`. Run the non-template bootstrap to install/activate the
-pinned `nvidia-open` driver, then reboot.
+- Ubuntu 24.04 LTS
+- VMID 9320
+- name `tpl-compute-ubuntu2404-20260808`
+- 8 vCPU
+- 16384 MiB RAM
+- 32 GiB root on `cuda-katra`
+- `vmbr0` only
+- no GPU
+- no model disk
+- no NVIDIA/AMD GPU driver
+- no CUDA
+- no ROCm
+- no Ollama
+- no llama.cpp build
+- no production identity
 
-### Phase 4 — acceptance
+Use:
 
-Run:
+- `proxmox/hv-katra-template.yaml`
+- `config/profiles/generic/profile.yaml`
+- `docs/template-build.md`
 
-```bash
-bin/doctor
-tests/smoke/appliance
-tests/smoke/cuda-nvidia
-tests/acceptance/appliance
-```
+Template bootstrap installs only common guest/build prerequisites and the
+workspace. Sanitize, shut down, then convert VM 9320 to a Proxmox template.
+Preserve `BUILD`.
 
-Acceptance must prove all of the following:
+## GPU profiles
 
-- exact RTX 5070 Ti identity
-- compute capability exactly 12.0
-- CUDA toolkit exactly 13.3
-- driver >= 610.43.02
-- a compiled CUDA kernel executes successfully on the GPU
-- llama.cpp enumerates the CUDA device
-- `/mnt/models` is mounted and writable with reserve headroom
-- repeated Ollama inference succeeds
-- Ollama reports GPU processing rather than unproven CPU fallback
-- acceptance outputs and YAML evidence are hashed
+The current profiles are:
 
-The small acceptance model is not the production sizing policy. Do not use a
-70B model as the reference acceptance workload for this 16 GiB card.
+- `config/profiles/nvidia-rtx5070ti/profile.yaml`
+  - CUDA 13.3
+  - `sm_120`
+  - NVIDIA open kernel modules
+- `config/profiles/amd-rx9070xt/profile.yaml`
+  - ROCm
+  - `gfx1201`
+- `config/profiles/nvidia-p6000/profile.yaml`
+  - CUDA 12.9
+  - `sm_61`
+  - proprietary NVIDIA R580 branch
 
-### Phase 5 — finalize
+The immediate reference deployment remains RTX 5070 Ti. The other two profiles
+are included now to preserve one template/rebuild model rather than create three
+separate appliance designs.
 
-Pass the SHA-256 of the acceptance YAML record to
-`bootstrap/finalize-instance.sh`. Finalization must write
-`config/instance-state.yaml` and preserve the appliance `BUILD` record.
+## GPU swap doctrine
+
+Do not normally convert an installed root filesystem from one GPU vendor stack to
+another. The root disk is disposable; the 160 GiB model/data disk is durable.
+For a GPU change, stop the VM, preserve/detach the model disk, update host
+PCI/VFIO/resource mapping under an authorized host play, clone a fresh root from
+9320, reattach the model disk, install the selected profile, and rerun acceptance.
+See `docs/gpu-swap.md`.
+
+## Immediate next phase — VM 9320 only
+
+Preflight live state, then build the generic Ubuntu 24.04 VM 9320 template.
+This phase may acquire and verify an official Canonical Ubuntu 24.04 cloud image
+or installer artifact and use normal Proxmox image/import tooling already present
+on the host. Do not install a Debian `qemu-utils` package that would replace or
+remove the Proxmox virtualization stack.
+
+Before mutation verify:
+
+- `cuda-katra` active and healthy;
+- VMID 9320 unused;
+- root storage remains `cuda-katra`;
+- bridges healthy;
+- existing VMs/containers healthy;
+- SN5100 partition boundary unchanged;
+- GPU remains parked under VFIO.
+
+Build VM 9320 exactly to the template contract, run generic template bootstrap,
+sanitize it, shut it down, convert it to a template, and verify the final `qm
+config` contains no GPU/model disk and no VM disk on host boot storage.
+
+Then STOP.
+
+Do not deploy VM 320 in the same play.
+
+## Reference VM 320 contract
+
+When separately authorized after template acceptance:
+
+- VMID: 320
+- hostname: `cuda-compute-katra`
+- 8 vCPU / 16384 MiB RAM
+- root: 32 GiB on `cuda-katra`
+- data: 160 GiB on `cuda-katra`, label `cuda-models`, mount `/mnt/models`
+- NIC 1: `vmbr0`, `192.168.10.92/24`, gateway `192.168.10.1`
+- NIC 2: `vmbr1`, `192.168.100.92/24`, MTU 9000, no gateway
+- DNS: `192.168.10.250`, `192.168.10.251`
+- search domain: `home.arpa`
+- logical GPU mapping: `gpu-compute-rtx5070ti`
+
+Acceptance, not cloning or driver installation, promotes the appliance.
 
 ## Stop conditions
 
-Stop and return evidence rather than guessing if any of these occur:
+Stop on a real material mismatch: wrong disk/storage identity, VMID collision,
+unexpected PCI endpoint/group, broken bridge, package action that removes a
+protected virtualization/guest stack, wrong GPU identity, missing model-disk
+identity, or inability to prove the intended compute backend.
 
-- NVMe serial/by-id, blank-state, partitioning, mount, holder, LVM, or Proxmox
-  storage state differs from the approved preflight.
-- RTX PCI IDs or IOMMU grouping differ from the evidence above.
-- `vmbr0` or `vmbr1` is not operational at deployment time, or `vmbr1` MTU is
-  below 9000.
-- The guest does not receive the intended two network identities.
-- Compute capability is not 12.0.
-- CUDA toolkit is not exactly 13.3.
-- NVIDIA driver is below 610.43.02.
-- Any acceptance test reports CPU fallback/unproven GPU execution.
-- Finalization cannot bind the accepted evidence hash to instance state.
+Do not stop merely because a harmless construction tool is outside the repository
+workspace or because a previous over-constrained provenance experiment was not
+completed.
