@@ -24,8 +24,10 @@ assert d['cuda']['pinned_version'] == '13.3'
 assert d['cuda']['toolkit_package'] == 'cuda-toolkit-13-3'
 assert d['cuda']['toolkit_package_version'] == '13.3.1-1'
 assert d['cuda']['driver_package'] == 'nvidia-open'
-assert d['cuda']['driver_package_version'] == '610.57.04-1ubuntu1'
-assert d['cuda']['minimum_driver'] == '610.57.04'
+assert d['cuda']['driver_branch'] == '610'
+assert d['cuda']['driver_policy'] == 'latest-in-branch'
+assert d['cuda']['minimum_driver'] == '610.43.02'
+assert 'driver_package_version' not in d['cuda']
 assert d['ollama']['version'] == '0.32.0'
 assert len(d['ollama']['asset_sha256']) == 64
 assert d['llama_cpp']['ref'] == 'b10173'
@@ -34,12 +36,15 @@ assert d['llama_cpp']['cuda_architectures'] == '120'
 PY
 
 grep -Fq 'cuda-keyring' "$stack"
+grep -Fq 'apt-cache madison' "$stack"
+grep -Fq 'latest-in-branch' "$stack"
 grep -Fq 'apt-get -s install' "$stack"
 grep -Fq "grep -Eq '^Remv '" "$stack"
 grep -Fq 'nvidia-driver-pinning-' "$stack"
+grep -Fq 'selected-nvidia-driver-version.txt' "$stack"
 grep -Fq 'tar --zstd' "$stack"
 grep -Fq 'CMAKE_CUDA_ARCHITECTURES' "$stack"
-grep -Fq 'systemctl stop ollama.service' "$stack"
+grep -Fq 'systemctl disable ollama.service' "$stack"
 grep -Fq 'DO NOT run GPU acceptance before reboot' "$install"
 grep -Fq 'expected exactly one unambiguous ~160 GiB non-root disk' "$model_disk"
 
