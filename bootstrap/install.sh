@@ -9,16 +9,15 @@ template_mode=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --profile)       profile=${2:?missing profile}; shift 2 ;;
-    --operator)      operator=${2:?missing operator}; shift 2 ;;
-    --dry-run)       dry_run=true; shift ;;
+    --profile) profile=${2:?missing profile}; shift 2 ;;
+    --operator) operator=${2:?missing operator}; shift 2 ;;
+    --dry-run) dry_run=true; shift ;;
     --template-mode) template_mode=true; shift ;;
     *) echo "usage: install.sh --profile FILE [--operator USER] [--dry-run] [--template-mode]" >&2; exit 64 ;;
   esac
 done
 
-[[ -n "$profile" ]] || { echo "--profile is required" >&2; exit 64; }
-
+[[ -n "$profile" && -r "$profile" ]] || { echo "--profile FILE is required" >&2; exit 64; }
 mode=--apply
 $dry_run && mode=--dry-run
 
@@ -37,10 +36,18 @@ $template_mode && profile_args+=(--template-mode)
 "$script_dir/install-profile.sh" "${profile_args[@]}"
 
 if $dry_run; then
-  echo "would verify commands and run profile-appropriate tests after GPU attachment"
+  echo "dry-run complete: no guest mutation"
+  exit 0
+fi
+
+for command in doctor probe run validate-output collect-evidence; do
+  [[ -x "$root/bin/$command" ]] || { echo "missing command: $command" >&2; exit 69; }
+done
+
+if $template_mode; then
+  echo "template-mode bootstrap complete"
 else
-  for command in doctor probe run validate-output collect-evidence; do
-    [[ -x "$root/bin/$command" ]] || { echo "missing command: $command" >&2; exit 69; }
-  done
-  $template_mode || "$root/tests/smoke/appliance"
+  echo "guest software installation complete"
+  echo "DO NOT run GPU acceptance before reboot"
+  echo "reboot, then run: bin/doctor && tests/smoke/appliance && tests/smoke/cuda-nvidia && tests/acceptance/appliance"
 fi
