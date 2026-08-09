@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-09 RTX 5070 Ti reference appliance accepted
+
+- Grow VM 320 `scsi0` from the 32 GiB neutral-template clone to its 64 GiB
+  deployed-instance contract before acceptance; VM 9320 remains unchanged at
+  32 GiB.
+- Make the llama.cpp CMake build and compiled CUDA smoke invoke the pinned
+  `/usr/local/cuda-13.3/bin/nvcc` directly, avoiding the `/usr/local/bin/nvcc`
+  symlink's incorrect toolkit-root discovery.
+- Install `nvidia-open=610.57.04-1ubuntu1` and
+  `cuda-toolkit-13-3=13.3.1-1`; enroll the local DKMS MOK under Secure Boot.
+- Build pinned llama.cpp `b10173` at commit
+  `e9fa0781f1c25fc4fe8c86be1edc6970661ad6f0` for `sm_120`, and install
+  Ollama `0.32.0`.
+- Pass CUDA smoke including a compiled compute-capability-12.0 kernel, then
+  pass appliance acceptance with two GPU-backed `llama3.2:1b` inferences.
+- Finalize VM 320 with acceptance SHA-256
+  `abd996dfba91947d2be699de46ed34cce00976929c8b5cb0b485375925fa6271`.
+
 ## 2026-08-08 Phase 4 accepted / guest stack implemented
 
 - Accept VM 320 running as `cuda-compute-katra`, full-cloned from VM 9320 with all VM disks on `cuda-katra`, dual static NICs, and direct passthrough of `0000:01:00.0`.

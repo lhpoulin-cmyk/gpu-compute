@@ -11,6 +11,7 @@ Accepted:
 - VM 320 guest-network recovery
 - encrypted SOPS/age preservation of network-recovery evidence
 - 160 GiB model-disk preparation
+- RTX 5070 Ti software installation, Secure Boot MOK enrollment, and appliance acceptance
 
 VM 9320 remains the accepted Ubuntu 26.04 template on `cuda-katra`.
 
@@ -24,6 +25,10 @@ VM 320 is running as `cuda-compute-katra` with:
 - DNS `192.168.10.250 192.168.10.251`, search `home.arpa`
 - `/dev/sdb`: ext4, `LABEL=cuda-models`, mounted `/mnt/models`
 - Secure Boot enabled
+- root disk: 64 GiB (`/` ext4, 43 GiB free after online growth)
+- `nvidia-open` `610.57.04-1ubuntu1`; CUDA toolkit `13.3.1-1`
+- Ollama `0.32.0` enabled only after CUDA smoke passed
+- llama.cpp `b10173` / `e9fa0781f1c25fc4fe8c86be1edc6970661ad6f0`, built for `sm_120`
 
 The cloud-init network fault was a failed attempted rename of the primary NIC to
 `eth0`; recovery replaced the guest netplan with MAC-bound definitions and disabled
@@ -56,22 +61,17 @@ Application/toolchain pins remain:
 - llama.cpp commit `e9fa0781f1c25fc4fe8c86be1edc6970661ad6f0`
 - CUDA architecture `sm_120`
 
-No NVIDIA driver, CUDA toolkit, Ollama, or llama.cpp installation has yet occurred.
+The installed driver is `nvidia-open=610.57.04-1ubuntu1`; it satisfies the
+branch-610 minimum.  Secure Boot MOK enrollment was required for the locally
+DKMS-built module.  `tests/smoke/cuda-nvidia` passed, including a compiled
+`sm_120` CUDA kernel.  `tests/smoke/appliance` and
+`tests/acceptance/appliance` passed with two `llama3.2:1b` GPU-backed
+inferences.  Acceptance record SHA-256:
+`abd996dfba91947d2be699de46ed34cce00976929c8b5cb0b485375925fa6271`.
 
 ## Next executable boundary
 
-Resume directly from the prepared VM 320:
-
-1. sync the updated branch and transfer the refreshed source snapshot to the guest;
-2. run regression/syntax checks;
-3. run the RTX installer dry-run;
-4. apply, selecting the newest authenticated branch-610 driver and exact CUDA 13.3
-   toolkit;
-5. reboot;
-6. prove NVIDIA/CUDA hardware execution;
-7. enable Ollama only after GPU smoke passes;
-8. run appliance/inference acceptance;
-9. finalize instance state only after acceptance passes.
-
-Do not redo networking, evidence sealing, model-disk formatting, VM construction, or
-host passthrough setup.
+VM 320 is finalized as the RTX 5070 Ti reference appliance.  Do not redo
+networking, evidence sealing, model-disk formatting, VM construction, or host
+passthrough setup.  Future work should begin from a separate, explicitly
+authorized production workload or maintenance play.
