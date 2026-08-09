@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-08 Phase 4 deployment preparation
+
+- Add concrete non-secret `proxmox/hv-katra-rtx5070ti.yaml` for VM 320.
+- Replace placeholder/custom-snippet deployment with standard Proxmox cloud-init fields and a runtime SSH public-key file.
+- Make `deploy-instance.sh` preflight the accepted template, storage reserve, bridges/MTU, PCI mapping, exact RTX PCI identities, and host `vfio-pci` binding before mutation.
+- Keep the 160 GiB model disk unformatted at host deployment time; formatting/mounting remains a separate first-boot gate.
+- Retire `proxmox/example-profile.yaml` as non-executable historical example material.
+- Add `tests/unit/deployment-contract.sh` to prevent reintroduction of placeholders, ISO fields, or custom cloud-init snippet dependencies.
+- Preserve failure evidence by leaving a partially created VM in place rather than silently destroying it.
+
 ## 2026-08-08 Phase 3 accepted
 
 - Accept VM 9320 as `tpl-compute-ubuntu2604-20260808`, an unbooted Ubuntu 26.04 cloud-image template on `cuda-katra`.
