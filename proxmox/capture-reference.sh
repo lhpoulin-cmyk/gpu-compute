@@ -16,10 +16,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 snap="post-acceptance-$(date -u +%Y%m%d)"
-echo "# qm snapshot $vmid $snap --description 'cuda-compute post-acceptance reference snapshot'"
+echo "# qm snapshot $vmid $snap --description 'gpu-compute post-acceptance reference snapshot'"
 $apply || exit 0
 
 require_proxmox_host
 qm status "$vmid" >/dev/null 2>&1 || { echo "VMID $vmid not found" >&2; exit 69; }
-qm snapshot "$vmid" "$snap" --description "cuda-compute post-acceptance reference snapshot"
+qm snapshot "$vmid" "$snap" --description "gpu-compute post-acceptance reference snapshot"
 echo "snapshot created: $snap on VMID $vmid"

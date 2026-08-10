@@ -34,7 +34,7 @@ state_file="$root/config/instance-state.yaml"
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 cat > "$tmp" <<YAML
-appliance: cuda-compute
+appliance: gpu-compute
 release: $release
 commit: $commit
 vmid: $vmid

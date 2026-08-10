@@ -24,7 +24,7 @@ Ti and the SN5100 NVMe storage partition.
 VM 9320 (tpl-cuda-compute-ubuntu2604-*):
   - Ubuntu 26.04 LTS base install
   - No GPU, no NVMe passthrough, no identity
-  - Appliance workspace /srv/cuda-compute present
+  - Appliance workspace /srv/gpu-compute present
   - Packages installed but NVIDIA driver not activated
   - cloud-init ready; sanitized of all instance identity
 

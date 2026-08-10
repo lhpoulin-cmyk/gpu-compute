@@ -5,7 +5,7 @@
 Guest logic runs inside VM 320. It may:
 - Install and configure Ubuntu packages.
 - Manage Ollama, llama.cpp, and CUDA toolkit packages.
-- Read and write within `/srv/cuda-compute`, `/mnt/models`, and
+- Read and write within `/srv/gpu-compute`, `/mnt/models`, and
   `/var/log/cuda-compute`.
 - Start and stop the Ollama systemd service.
 - Observe GPU state via `nvidia-smi` and CUDA runtime queries.

@@ -11,7 +11,7 @@ done
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
-echo "=== cuda-compute probe ==="
+echo "=== gpu-compute probe ==="
 echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 echo ""

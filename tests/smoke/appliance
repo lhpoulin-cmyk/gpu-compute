@@ -6,14 +6,14 @@ check() { local label=$1; shift; "$@" >/dev/null 2>&1 && printf '[PASS] %s\n' "$
 
 echo "=== smoke/appliance ==="
 
-check "workspace exists"      test -d /srv/cuda-compute
-check "BUILD present"         test -f /srv/cuda-compute/BUILD
-check "active profile"        test -f /srv/cuda-compute/config/active-hardware-profile.yaml
-check "bin/doctor"            test -x /srv/cuda-compute/bin/doctor
-check "bin/probe"             test -x /srv/cuda-compute/bin/probe
-check "bin/run"               test -x /srv/cuda-compute/bin/run
-check "bin/validate-output"   test -x /srv/cuda-compute/bin/validate-output
-check "bin/collect-evidence"  test -x /srv/cuda-compute/bin/collect-evidence
+check "workspace exists"      test -d /srv/gpu-compute
+check "BUILD present"         test -f /srv/gpu-compute/BUILD
+check "active profile"        test -f /srv/gpu-compute/config/active-hardware-profile.yaml
+check "bin/doctor"            test -x /srv/gpu-compute/bin/doctor
+check "bin/probe"             test -x /srv/gpu-compute/bin/probe
+check "bin/run"               test -x /srv/gpu-compute/bin/run
+check "bin/validate-output"   test -x /srv/gpu-compute/bin/validate-output
+check "bin/collect-evidence"  test -x /srv/gpu-compute/bin/collect-evidence
 check "nvidia-smi available"  command -v nvidia-smi
 check "ollama available"      command -v ollama
 check "llama-cli available"   command -v llama-cli

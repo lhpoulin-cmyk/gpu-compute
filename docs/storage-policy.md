@@ -34,7 +34,7 @@ Authorized CUDA allocation:
 - VM 320 model disk: 160 GiB on `cuda-katra`
 - Guest mount: `LABEL=cuda-models` → `/mnt/models`
 
-The remaining physical SN5100 capacity stays unpartitioned and operator-reserved. `cuda-compute` may not consume it without separate authorization.
+The remaining physical SN5100 capacity stays unpartitioned and operator-reserved. `gpu-compute` may not consume it without separate authorization.
 
 ## Template policy
 

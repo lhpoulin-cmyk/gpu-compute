@@ -15,5 +15,5 @@ package_update: false
 package_upgrade: false
 
 runcmd:
-  - mkdir -p /srv/cuda-compute
+  - mkdir -p /srv/gpu-compute
   - echo "cloud-init complete; format/mount the model disk, then run bootstrap/install.sh manually"

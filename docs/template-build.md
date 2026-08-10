@@ -16,7 +16,7 @@ It contains no:
 - NVIDIA or AMD driver
 - CUDA or ROCm toolkit
 - Ollama or llama.cpp build
-- cuda-compute checkout or BUILD file
+- gpu-compute checkout or BUILD file
 - model/data disk
 - production IP identity
 - secrets or runtime evidence
@@ -52,7 +52,7 @@ import; it does not reopen the retired transitive-package-lock experiment.
 On `hv-katra`:
 
 ```bash
-cd /srv/cuda-compute
+cd /srv/gpu-compute
 
 proxmox/create-template.sh \
   --profile proxmox/hv-katra-template.yaml \

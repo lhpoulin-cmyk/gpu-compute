@@ -46,9 +46,9 @@ lspci -nn | grep -Fqi "[$expected_pci]" || {
   exit 69
 }
 
-install -d -m 0755 /srv/cuda-compute/config
-cp "$profile" /srv/cuda-compute/config/active-hardware-profile.yaml
-chmod 0644 /srv/cuda-compute/config/active-hardware-profile.yaml
+install -d -m 0755 /srv/gpu-compute/config
+cp "$profile" /srv/gpu-compute/config/active-hardware-profile.yaml
+chmod 0644 /srv/gpu-compute/config/active-hardware-profile.yaml
 
 if [[ "$stack" == nvidia-cuda-modern ]]; then
   cat > /etc/modprobe.d/blacklist-nouveau.conf <<'EOF'

@@ -26,12 +26,12 @@ rm -rf /var/lib/cloud/instances /var/lib/cloud/instance
 find /var/log -type f -exec truncate -s 0 {} +
 
 # Remove appliance instance state (but preserve workspace structure)
-rm -f /srv/cuda-compute/config/active-hardware-profile.yaml
-rm -f /srv/cuda-compute/config/instance-state.yaml
-find /srv/cuda-compute/evidence -mindepth 1 -delete 2>/dev/null || true
-find /srv/cuda-compute/jobs -mindepth 1 -delete 2>/dev/null || true
-find /srv/cuda-compute/logs -mindepth 1 -delete 2>/dev/null || true
-find /srv/cuda-compute/tmp -mindepth 1 -delete 2>/dev/null || true
+rm -f /srv/gpu-compute/config/active-hardware-profile.yaml
+rm -f /srv/gpu-compute/config/instance-state.yaml
+find /srv/gpu-compute/evidence -mindepth 1 -delete 2>/dev/null || true
+find /srv/gpu-compute/jobs -mindepth 1 -delete 2>/dev/null || true
+find /srv/gpu-compute/logs -mindepth 1 -delete 2>/dev/null || true
+find /srv/gpu-compute/tmp -mindepth 1 -delete 2>/dev/null || true
 
 # Keep BUILD: it identifies the appliance software build and is required by smoke tests.
 # Keep the CUDA toolkit and pinned llama.cpp/Ollama software, but leave Ollama disabled.

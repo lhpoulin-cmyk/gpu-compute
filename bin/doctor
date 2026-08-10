@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-echo "=== cuda-compute doctor ==="
+echo "=== gpu-compute doctor ==="
 echo "date: $(date -Is)"
 echo "host: $(hostname -f 2>/dev/null || hostname)"
 echo "kernel: $(uname -r)"

@@ -59,7 +59,7 @@ host-side change requires an explicit operator-authorized host play.
 
 ## Workspace and storage
 
-The canonical workspace is `/srv/cuda-compute`. Supported commands are in
+The canonical workspace is `/srv/gpu-compute`. Supported commands are in
 `bin/`; versioned profiles in `config/`; policy and runbooks in `docs/`; raw
 evidence in `evidence/`; state transitions in `jobs/`; runtime logs in `logs/`;
 pipeline definitions in `pipelines/`; bounded work in `scratch/`; validation in

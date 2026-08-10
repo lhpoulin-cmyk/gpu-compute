@@ -12,7 +12,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-workspace=/srv/cuda-compute
+workspace=/srv/gpu-compute
 model_base=/mnt/models
 
 dirs=("$workspace/evidence" "$workspace/jobs" "$workspace/logs" "$workspace/scratch" "$workspace/tmp")

@@ -14,8 +14,8 @@ must not invent them.
 
 ## Required interface
 
-Every instance provides executable `/srv/cuda-compute/bin/{doctor,probe,run,
-validate-output,collect-evidence}` and the canonical `/srv/cuda-compute`
+Every instance provides executable `/srv/gpu-compute/bin/{doctor,probe,run,
+validate-output,collect-evidence}` and the canonical `/srv/gpu-compute`
 workspace. `/mnt/models/{library,work,cache,output}` are reserved mount points;
 existence is never treated as proof of a mount.
 

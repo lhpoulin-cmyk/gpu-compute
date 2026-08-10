@@ -34,26 +34,26 @@ The model disk is intentionally created blank by the host deployment. Inside VM 
 run the guarded preparation script first:
 
 ```bash
-sudo /srv/cuda-compute/bootstrap/prepare-model-disk.sh --dry-run
-sudo /srv/cuda-compute/bootstrap/prepare-model-disk.sh --apply
+sudo /srv/gpu-compute/bootstrap/prepare-model-disk.sh --dry-run
+sudo /srv/gpu-compute/bootstrap/prepare-model-disk.sh --apply
 ```
 
 The script requires exactly one unambiguous ~160 GiB non-root blank disk and refuses
 existing partitions, signatures, or mounts. It creates ext4 `LABEL=cuda-models`, adds
 the `/mnt/models` fstab entry, and mounts it.
 
-Transfer the current source snapshot from the host checkout into `/srv/cuda-compute`.
+Transfer the current source snapshot from the host checkout into `/srv/gpu-compute`.
 Do not place GitHub credentials or private SSH keys in the guest.
 
 Then run the RTX 5070 Ti bootstrap:
 
 ```bash
-sudo /srv/cuda-compute/bootstrap/install.sh \
-  --profile /srv/cuda-compute/config/profiles/nvidia-rtx5070ti/profile.yaml \
+sudo /srv/gpu-compute/bootstrap/install.sh \
+  --profile /srv/gpu-compute/config/profiles/nvidia-rtx5070ti/profile.yaml \
   --operator louis --dry-run
 
-sudo /srv/cuda-compute/bootstrap/install.sh \
-  --profile /srv/cuda-compute/config/profiles/nvidia-rtx5070ti/profile.yaml \
+sudo /srv/gpu-compute/bootstrap/install.sh \
+  --profile /srv/gpu-compute/config/profiles/nvidia-rtx5070ti/profile.yaml \
   --operator louis
 ```
 
@@ -69,7 +69,7 @@ Ollama remains disabled and stopped through this stage. Reboot before hardware t
 After SSH returns:
 
 ```bash
-cd /srv/cuda-compute
+cd /srv/gpu-compute
 tests/smoke/cuda-nvidia
 ```
 

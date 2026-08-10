@@ -1,7 +1,7 @@
 # Copy to config/instance-state.yaml after first successful acceptance.
 # This file is .gitignored; do not commit the populated version.
 
-appliance: cuda-compute
+appliance: gpu-compute
 release: development
 commit: unset
 vmid: 320

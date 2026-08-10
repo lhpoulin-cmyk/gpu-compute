@@ -1,6 +1,6 @@
 # GPU swap model
 
-`cuda-compute` treats the VM root disk as disposable and the model/data disk as
+`gpu-compute` treats the VM root disk as disposable and the model/data disk as
 durable. Different GPU families receive fresh roots from the appropriate neutral OS
 template instead of accumulating conflicting vendor stacks in one guest.
 
@@ -8,7 +8,7 @@ template instead of accumulating conflicting vendor stacks in one guest.
 
 VM 9320 is an unbooted, hardware-neutral Ubuntu 26.04 cloud-image template. It
 contains no GPU driver, CUDA toolkit, ROCm stack, Ollama installation, llama.cpp
-build, cuda-compute checkout, model disk, GPU, or production identity.
+build, gpu-compute checkout, model disk, GPU, or production identity.
 
 Current modern profiles:
 
@@ -41,7 +41,7 @@ Never attach the same writable model disk to two running guests.
 5. Clone a fresh root from the correct neutral template for that GPU family.
 6. Reattach the preserved model disk.
 7. Attach the logical GPU mapping.
-8. Boot the guest and materialize `/srv/cuda-compute` from the approved repository revision.
+8. Boot the guest and materialize `/srv/gpu-compute` from the approved repository revision.
 9. Run `bootstrap/install.sh` with the selected hardware profile.
 10. Reboot when the selected driver stack requires it.
 11. Run profile-specific smoke and acceptance tests before calling the appliance operational.
