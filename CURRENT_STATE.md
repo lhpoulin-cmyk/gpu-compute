@@ -69,6 +69,26 @@ DKMS-built module.  `tests/smoke/cuda-nvidia` passed, including a compiled
 inferences.  Acceptance record SHA-256:
 `abd996dfba91947d2be699de46ed34cce00976929c8b5cb0b485375925fa6271`.
 
+## 2026-08-10 Qwen3-Coder 30B staging observation
+
+`qwen3-coder:30b` is present in the durable Ollama model library. Its local
+manifest digest is
+`06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca`;
+the model layer is 18,556,688,736 bytes, architecture `qwen3moe`, 30.5B
+parameters, and quantization `Q4_K_M`.
+
+The one neutral controlled run used `bin/run` with `--allow-cpu` absent and
+returned a non-empty output. Ollama reported `20%/80% CPU/GPU`, with 14,890
+MiB of the 16,303 MiB GPU allocation in use. `bin/run` accepted that result
+because its current check requires GPU residency and does not reject a mixed
+CPU/GPU processor split.
+
+This is a model-runtime constraint, not acceptance of Qwen3-Coder for a
+GPU-only workload. The current appliance policy rejects CPU fallback for
+production jobs. No policy, service, CUDA, driver, or model-runtime setting was
+changed. Raw pull, run, and post-run evidence remains under the guest's
+operational `evidence/` directory.
+
 ## Next executable boundary
 
 VM 320 is finalized as the RTX 5070 Ti reference appliance.  Do not redo
