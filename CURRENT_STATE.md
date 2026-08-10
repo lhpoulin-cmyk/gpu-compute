@@ -103,6 +103,17 @@ This was filesystem retirement only: no model inference, CUDA/Ollama
 acceptance, or runtime-policy change was executed. The VM hostname remains
 `cuda-compute-katra`.
 
+## 2026-08-10 canonical evidence-root correction
+
+The first external controlled-run integration stopped before inference because
+the migrated `/srv/gpu-compute/evidence` directory was `root:root 0755` while
+the approved runner executes as `louis`.  The canonical operational contract
+is now `louis:louis`, mode `0755`, for that evidence subtree only; source files
+remain outside the runtime-write boundary.  A non-model create/remove probe,
+storage/profile/service/output-path gates, and wrong-policy pre-inference
+rejection passed after the correction.  No model inference or runtime-policy
+change occurred.
+
 ## Next executable boundary
 
 VM 320 is finalized as the RTX 5070 Ti reference appliance.  Do not redo
