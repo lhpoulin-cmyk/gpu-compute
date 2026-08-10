@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-10 idempotent controlled inference
+
+- Add durable caller invocation identities, retained invocation responses, and
+  a bounded status interface so client interruption cannot cause duplicate
+  model execution.
+
 ## 2026-08-09 RTX 5070 Ti reference appliance accepted
 
 - Grow VM 320 `scsi0` from the 32 GiB neutral-template clone to its 64 GiB

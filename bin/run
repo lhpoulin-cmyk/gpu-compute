@@ -2,98 +2,94 @@
 set -Eeuo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-model= prompt= output= execution_policy=
-
+model= prompt= output= execution_policy= invocation_id=
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --model)       model=${2:?missing model}; shift 2 ;;
-    --prompt)      prompt=${2:?missing prompt}; shift 2 ;;
-    --output)      output=${2:?missing output}; shift 2 ;;
+    --invocation-id) invocation_id=${2:?missing invocation id}; shift 2 ;;
+    --model) model=${2:?missing model}; shift 2 ;;
+    --prompt) prompt=${2:?missing prompt}; shift 2 ;;
+    --output) output=${2:?missing output}; shift 2 ;;
     --execution-policy) execution_policy=${2:?missing execution policy}; shift 2 ;;
-    --allow-cpu)   echo "--allow-cpu is retired; use an accepted --execution-policy" >&2; exit 64 ;;
-    *) echo "usage: run --model MODEL --prompt PROMPT --output PATH --execution-policy POLICY" >&2; exit 64 ;;
+    --allow-cpu) echo "--allow-cpu is retired; use an accepted --execution-policy" >&2; exit 64 ;;
+    *) echo "usage: run --invocation-id ID --model MODEL --prompt PROMPT [--output PATH] --execution-policy POLICY" >&2; exit 64 ;;
   esac
 done
 
-[[ -n "$model" ]] || { echo "--model is required" >&2; exit 64; }
-[[ -n "$prompt" ]] || { echo "--prompt is required" >&2; exit 64; }
-[[ -n "$output" ]] || { echo "--output is required" >&2; exit 64; }
-[[ -n "$execution_policy" ]] || { echo "--execution-policy is required" >&2; exit 64; }
-
+[[ "$invocation_id" =~ ^alpha-[A-Za-z0-9][A-Za-z0-9._-]{15,119}$ ]] || { echo "invalid --invocation-id" >&2; exit 64; }
+[[ -n "$model" && -n "$prompt" && -n "$execution_policy" ]] || { echo "model, prompt, and execution policy are required" >&2; exit 64; }
 profile="$root/config/active-hardware-profile.yaml"
-[[ -r "$profile" ]] || { echo "active hardware profile not found; run bootstrap first" >&2; exit 66; }
-
+[[ -r "$profile" ]] || { echo "active hardware profile not found" >&2; exit 66; }
 findmnt -M /mnt/models -n >/dev/null 2>&1 || { echo "/mnt/models not mounted" >&2; exit 69; }
-
 free_gib=$(df --output=avail -BG /mnt/models | tail -1 | tr -d 'G ')
 free_pct=$(df --output=pcent /mnt/models | tail -1 | tr -d '% ')
-remaining_pct=$(( 100 - free_pct ))
-if [[ "$free_gib" -lt 20 || "$remaining_pct" -lt 20 ]]; then
-  echo "storage reserve not met: ${free_gib} GiB free (${remaining_pct}% free)" >&2
-  exit 69
-fi
-
+remaining_pct=$((100 - free_pct))
+[[ "$free_gib" -ge 20 && "$remaining_pct" -ge 20 ]] || { echo "storage reserve not met" >&2; exit 69; }
 systemctl is-active --quiet ollama || { echo "ollama service is not active" >&2; exit 69; }
 "$root/bin/model-execution-policy" --check-profile --model "$model" --execution-policy "$execution_policy" >/dev/null
 
-[[ -e "$output" ]] && { echo "output path already exists: $output" >&2; exit 73; }
-output_dir=$(dirname "$output")
-[[ -d "$output_dir" ]] || { echo "output directory not found: $output_dir" >&2; exit 66; }
+base="$root/evidence/invocations"
+mkdir -p "$base"
+invocation="$base/$invocation_id"
+mkdir -p "$invocation"
+exec 9>"$invocation/lock"
+flock -w 10 9 || { echo "INVOCATION_RUNNING"; exit 75; }
 
-partial="${output}.part"
+prompt_sha=$(printf '%s' "$prompt" | sha256sum | awk '{print $1}')
+request="$invocation/request.tsv"
+expected=$(printf '%s\t%s\t%s\n' "$model" "$execution_policy" "$prompt_sha")
+if [[ -e "$request" ]]; then
+  [[ "$(cat "$request")" == "${expected%$'\n'}" ]] || { echo "INVOCATION_MISMATCH" >&2; exit 65; }
+else
+  temporary="$invocation/request.tsv.tmp.$$"
+  printf '%s' "$expected" > "$temporary"; sync -f "$temporary"; mv "$temporary" "$request"; sync -f "$invocation"
+  printf 'CREATED\n' > "$invocation/state.tmp.$$"; sync -f "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; sync -f "$invocation"
+fi
+
+state=$(cat "$invocation/state")
+case "$state" in
+  SUCCEEDED)
+    job_id=$(cat "$invocation/job-id"); [[ -z "$output" ]] || cp -- "$invocation/response.txt" "$output"
+    echo "[$job_id] succeeded invocation=$invocation_id"; exit 0 ;;
+  FAILED*) echo "$state" >&2; exit 1 ;;
+  RUNNING) echo "INVOCATION_RUNNING"; exit 75 ;;
+  CREATED) ;;
+  *) echo "invalid invocation state" >&2; exit 70 ;;
+esac
+
 job_id="job-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-evidence_dir="$root/evidence/$job_id"
-mkdir -p "$evidence_dir"
-
-log="$evidence_dir/ollama.log"
-meta="$evidence_dir/meta.yaml"
-
+evidence_dir="$root/evidence/$job_id"; mkdir -p "$evidence_dir"
+printf '%s\n' "$job_id" > "$invocation/job-id"
+printf 'RUNNING\n' > "$invocation/state.tmp.$$"; sync -f "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; sync -f "$invocation"
+log="$evidence_dir/ollama.log"; meta="$evidence_dir/meta.yaml"; partial="$invocation/response.part"
 cat > "$meta" <<YAML
 job_id: $job_id
+invocation_id: $invocation_id
 model: $model
-prompt: $(printf '%s' "$prompt" | head -c 256)
-output: $output
+prompt_sha256: $prompt_sha
 timestamp_start: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 execution_policy: $execution_policy
 YAML
-
-echo "[$job_id] running inference: model=$model"
-
-"$root/bin/ollama-machine-response" \
-  --model "$model" \
-  --prompt "$prompt" \
-  --output "$partial" 2>"$log" || {
-  echo "[$job_id] inference failed; log: $log" >&2
-  echo "status: failed" >> "$meta"
-  exit 1
-}
-
+echo "[$job_id] running inference: model=$model invocation=$invocation_id"
+if ! "$root/bin/ollama-machine-response" --model "$model" --prompt "$prompt" --output "$partial" 2>"$log"; then
+  printf 'FAILED_INFERENCE\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; echo "status: failed" >> "$meta"; exit 1
+fi
 ps_snapshot="$evidence_dir/ollama-ps.txt"
-ollama ps > "$ps_snapshot" 2>&1 || {
-  echo "[$job_id] unable to capture Ollama processor evidence" >&2
-  echo "status: failed-unproven" >> "$meta"
-  rm -f "$partial"
-  exit 1
-}
+if ! ollama ps > "$ps_snapshot" 2>&1; then
+  rm -f "$partial"; printf 'FAILED_UNPROVEN\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1
+fi
 policy_evidence="$evidence_dir/policy-result.yaml"
 if ! "$root/bin/model-execution-policy" --evaluate-ps --model "$model" --execution-policy "$execution_policy" --ps-file "$ps_snapshot" > "$policy_evidence"; then
-  echo "[$job_id] model processor residency violates the accepted execution policy" >&2
-  cat "$policy_evidence" >> "$meta" 2>/dev/null || true
-  echo "status: failed-runtime-policy" >> "$meta"
-  rm -f "$partial"
-  exit 1
+  rm -f "$partial"; printf 'FAILED_RUNTIME_POLICY\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1
 fi
 cat "$policy_evidence" >> "$meta"
-
-[[ -s "$partial" ]] || { echo "[$job_id] output is empty" >&2; echo "status: failed-empty" >> "$meta"; rm -f "$partial"; exit 1; }
-
-sha=$(sha256sum "$partial" | awk '{print $1}')
-mv "$partial" "$output"
-
+[[ -s "$partial" ]] || { rm -f "$partial"; printf 'FAILED_EMPTY\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1; }
+sha=$(sha256sum "$partial" | awk '{print $1}'); mv "$partial" "$invocation/response.txt"; sync -f "$invocation/response.txt"
 cat >> "$meta" <<YAML
 timestamp_end: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 output_sha256: $sha
 status: succeeded
 YAML
-
-echo "[$job_id] succeeded: $output (sha256: $sha)"
+printf '%s\n' "$sha" > "$invocation/output-sha256"
+printf 'SUCCEEDED\n' > "$invocation/state.tmp.$$"; sync -f "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; sync -f "$invocation"
+[[ -z "$output" ]] || cp -- "$invocation/response.txt" "$output"
+echo "[$job_id] succeeded invocation=$invocation_id (sha256: $sha)"

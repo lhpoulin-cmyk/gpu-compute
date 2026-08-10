@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+[[ ${1:-} == --invocation-id && ${2:-} =~ ^alpha-[A-Za-z0-9][A-Za-z0-9._-]{15,119}$ && $# -eq 2 ]] || { echo "usage: run-status --invocation-id ID" >&2; exit 64; }
+directory="$root/evidence/invocations/$2"
+if [[ ! -d "$directory" ]]; then printf 'invocation_id: %s\nstate: NOT_STARTED\n' "$2"; exit 0; fi
+printf 'invocation_id: %s\nstate: %s\n' "$2" "$(cat "$directory/state" 2>/dev/null || echo UNKNOWN)"
+[[ -f "$directory/job-id" ]] && printf 'job_id: %s\n' "$(cat "$directory/job-id")"
+[[ -f "$directory/response.txt" ]] && printf 'response_available: yes\n' || printf 'response_available: no\n'
+[[ -f "$directory/output-sha256" ]] && printf 'output_sha256: %s\n' "$(cat "$directory/output-sha256")"

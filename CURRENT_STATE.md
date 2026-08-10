@@ -1,5 +1,13 @@
 # Current state
 
+## Idempotent controlled inference
+
+Controlled runs require a bounded caller invocation ID. Durable state beneath
+`evidence/invocations/` is claimed before Ollama launch and moves through
+`CREATED`, `RUNNING`, and terminal `SUCCEEDED`/`FAILED_*` states. Re-presenting
+a matching ID never relaunches inference; `bin/run-status` exposes recovery
+state. Model identity, runtime policy, and accepted offload remain unchanged.
+
 ## Accepted host / VM state
 
 Accepted:
