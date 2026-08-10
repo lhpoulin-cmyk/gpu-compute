@@ -89,6 +89,20 @@ against `config/model-runtime-profiles.tsv`; the ambiguous `--allow-cpu` switch
 is retired. CPU fallback remains rejected. Raw pull, run, and post-run evidence
 remains under the guest's operational `evidence/` directory.
 
+## 2026-08-10 deployment-path retirement
+
+`cuda-compute` is the former project/runtime name. The former deployment path
+`/srv/cuda-compute` was retired after its classified runtime state and evidence
+were hash-verified in
+`/srv/gpu-compute-preservation-20260810T110900Z` and preserved beneath the
+canonical `/srv/gpu-compute/evidence/legacy-cuda-compute/` tree. The canonical
+appliance source path is `/srv/gpu-compute`, deployed from
+`6906119abaeb371c37a0036d5462e599b469e146`.
+
+This was filesystem retirement only: no model inference, CUDA/Ollama
+acceptance, or runtime-policy change was executed. The VM hostname remains
+`cuda-compute-katra`.
+
 ## Next executable boundary
 
 VM 320 is finalized as the RTX 5070 Ti reference appliance.  Do not redo
