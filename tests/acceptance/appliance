@@ -53,9 +53,9 @@ first_output="/mnt/models/output/acceptance-${timestamp}-1.txt"
 second_output="/mnt/models/output/acceptance-${timestamp}-2.txt"
 
 start_ns=$(date +%s%N)
-"$root/bin/run" --model "$smoke_model" --prompt "Return the single word VERIFIED and nothing else." --output "$first_output"
+"$root/bin/run" --model "$smoke_model" --execution-policy gpu-only --prompt "Return the single word VERIFIED and nothing else." --output "$first_output"
 mid_ns=$(date +%s%N)
-"$root/bin/run" --model "$smoke_model" --prompt "Return the single word VERIFIED and nothing else." --output "$second_output"
+"$root/bin/run" --model "$smoke_model" --execution-policy gpu-only --prompt "Return the single word VERIFIED and nothing else." --output "$second_output"
 end_ns=$(date +%s%N)
 
 check "first output contains VERIFIED" grep -qi VERIFIED "$first_output"

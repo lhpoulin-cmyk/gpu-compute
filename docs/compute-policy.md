@@ -10,10 +10,12 @@ validated before promotion.
 ## Hardware acceleration policy
 
 CUDA is the production inference backend. The CUDA device, driver version, and
-compute capability must be verified before every job. CPU fallback is rejected
-unless a job's manifest field `allow_cpu_fallback: true` is set explicitly and
-the operator has authorized it. Ollama and llama.cpp must log the CUDA device
-path; absence of a device path in the inference log is a validation failure.
+compute capability must be verified before every job. CPU fallback is rejected.
+Deliberate GPU-primary partial offload is allowed only for an exact
+model/runtime profile accepted by `gpu-cp`; it is not a job-level
+`allow_cpu_fallback` switch. See [model execution policy](model-execution-policy.md).
+Ollama and llama.cpp must log the CUDA device path; absence of a device path in
+the inference log is a validation failure.
 
 Vulkan compute is available as an experimental path. It must be explicitly
 selected; it is not a fallback for CUDA failures.
@@ -34,10 +36,9 @@ the job is rejected before inference begins.
 
 ## VRAM headroom
 
-The appliance checks that expected model VRAM requirements do not exceed
-available VRAM before beginning inference. Layer-offload to system RAM is
-permitted only when the hardware profile's `allow_partial_offload` flag is
-set. Full VRAM offload is the production requirement.
+The appliance validates actual processor residency after inference against the
+accepted profile. Full GPU residency is the default; partial offload cannot be
+granted by a caller-supplied flag.
 
 ## Output completeness
 

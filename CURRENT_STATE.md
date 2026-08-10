@@ -77,17 +77,17 @@ manifest digest is
 the model layer is 18,556,688,736 bytes, architecture `qwen3moe`, 30.5B
 parameters, and quantization `Q4_K_M`.
 
-The one neutral controlled run used `bin/run` with `--allow-cpu` absent and
-returned a non-empty output. Ollama reported `20%/80% CPU/GPU`, with 14,890
-MiB of the 16,303 MiB GPU allocation in use. `bin/run` accepted that result
-because its current check requires GPU residency and does not reject a mixed
-CPU/GPU processor split.
+The one neutral controlled run returned a non-empty output. Ollama reported
+`20%/80% CPU/GPU`, with 14,890 MiB of the 16,303 MiB GPU allocation in use.
+That observation is now the exact-artifact baseline for the accepted
+`GPU_PRIMARY_PARTIAL_OFFLOAD` profile defined by `gpu-cp`: at least 80% GPU and
+at most 20% CPU on `cuda-compute-katra` / RTX 5070 Ti. It is not GPU-only.
 
-This is a model-runtime constraint, not acceptance of Qwen3-Coder for a
-GPU-only workload. The current appliance policy rejects CPU fallback for
-production jobs. No policy, service, CUDA, driver, or model-runtime setting was
-changed. Raw pull, run, and post-run evidence remains under the guest's
-operational `evidence/` directory.
+`bin/run` now requires a named `--execution-policy` and validates exact manifest
+digest, appliance/GPU identity, and parseable `ollama ps` processor evidence
+against `config/model-runtime-profiles.tsv`; the ambiguous `--allow-cpu` switch
+is retired. CPU fallback remains rejected. Raw pull, run, and post-run evidence
+remains under the guest's operational `evidence/` directory.
 
 ## Next executable boundary
 

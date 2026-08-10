@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Enforces gpu-cp accepted model residency profiles. It deliberately accepts
+# neither caller-selected percentages nor ambiguous processor text.
+set -Eeuo pipefail
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+profiles_default="$root/config/model-runtime-profiles.tsv"
+
+die() { echo "$1" >&2; exit "${2:-1}"; }
+
+parse_processor_split() {
+  local raw=${1//$'\r'/}
+  raw=$(printf '%s' "$raw" | xargs)
+  if [[ $raw =~ ^100%[[:space:]]+GPU$ ]]; then
+    printf '0 100\n'
+  elif [[ $raw =~ ^100%[[:space:]]+CPU$ ]]; then
+    printf '100 0\n'
+  elif [[ $raw =~ ^([0-9]{1,3})%/([0-9]{1,3})%[[:space:]]+CPU/GPU$ ]]; then
+    local cpu=${BASH_REMATCH[1]} gpu=${BASH_REMATCH[2]}
+    (( cpu <= 100 && gpu <= 100 && cpu + gpu == 100 )) || return 1
+    printf '%d %d\n' "$cpu" "$gpu"
+  elif [[ $raw =~ ^([0-9]{1,3})%/([0-9]{1,3})%[[:space:]]+GPU/CPU$ ]]; then
+    local gpu=${BASH_REMATCH[1]} cpu=${BASH_REMATCH[2]}
+    (( cpu <= 100 && gpu <= 100 && cpu + gpu == 100 )) || return 1
+    printf '%d %d\n' "$cpu" "$gpu"
+  else
+    return 1
+  fi
+}
+
+classify_processor_split() {
+  local mode=$1 min_gpu=$2 max_cpu=$3 cpu=$4 gpu=$5
+  if (( cpu == 0 && gpu == 100 )); then
+    [[ $mode == GPU_ONLY ]] && { echo GPU_ONLY; return 0; }
+    echo RUNTIME_PROFILE_VIOLATION; return 1
+  fi
+  if (( gpu == 0 || gpu <= cpu )); then
+    echo CPU_FALLBACK; return 1
+  fi
+  if [[ $mode != GPU_PRIMARY_PARTIAL_OFFLOAD ]]; then
+    echo RUNTIME_PROFILE_VIOLATION; return 1
+  fi
+  if (( gpu < min_gpu || cpu > max_cpu )); then
+    echo RUNTIME_PROFILE_VIOLATION; return 1
+  fi
+  echo GPU_PRIMARY_PARTIAL_OFFLOAD
+}
+
+manifest_digest() {
+  local model=$1 path
+  [[ $model =~ ^[A-Za-z0-9._:-]+$ ]] || return 1
+  path="/mnt/models/library/manifests/registry.ollama.ai/library/${model/:/\/}"
+  [[ -r $path ]] || return 1
+  sha256sum "$path" | awk '{print $1}'
+}
+
+find_profile() {
+  local file=$1 tag=$2 digest=$3 appliance=$4 accelerator=$5
+  awk -F '\t' -v tag="$tag" -v digest="$digest" -v appliance="$appliance" -v accelerator="$accelerator" '
+    $1 !~ /^#/ && NF == 12 && $2 == tag && $3 == digest && $5 == appliance && $7 == accelerator && $12 == "ACCEPTED" { print; found=1; exit }
+    END { if (!found) exit 1 }
+  ' "$file"
+}
+
+active_processor_text() {
+  local model=$1 ps_file=$2
+  awk -v model="$model" '$1 == model && NF >= 6 { print $5 " " $6; found=1; exit } END { if (!found) exit 1 }' "$ps_file"
+}
+
+load_profile() {
+  local model=$1 profile_file=$2 digest appliance accelerator row
+  digest=$(manifest_digest "$model") || die "UNPROVEN: cannot establish local manifest digest for $model" 69
+  appliance=$(hostname -s) || die "UNPROVEN: cannot establish appliance identity" 69
+  accelerator=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | xargs) || die "UNPROVEN: cannot establish GPU identity" 69
+  row=$(find_profile "$profile_file" "$model" "$digest" "$appliance" "$accelerator") || die "RUNTIME_PROFILE_UNCLASSIFIED: no accepted exact-artifact profile for $model" 69
+  IFS=$'\t' read -r profile_id profile_tag profile_digest quant profile_appliance profile_host profile_accelerator profile_mode min_gpu max_cpu observed_vram status <<< "$row"
+}
+
+emit_profile() {
+  cat <<EOF
+profile_id: $profile_id
+model: $profile_tag
+manifest_digest: $profile_digest
+quantization: $quant
+appliance: $profile_appliance
+host: $profile_host
+accelerator: $profile_accelerator
+expected_mode: $profile_mode
+minimum_gpu_percent: $min_gpu
+maximum_cpu_percent: $max_cpu
+EOF
+}
+
+main() {
+  local command=${1:-} model= policy= ps_file= profiles=$profiles_default
+  [[ -n $command ]] || die 'usage: model-execution-policy --check-profile|--evaluate-ps --model MODEL --execution-policy POLICY [--ps-file FILE]' 64
+  shift
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --model) model=${2:?missing model}; shift 2 ;;
+      --execution-policy) policy=${2:?missing execution policy}; shift 2 ;;
+      --ps-file) ps_file=${2:?missing ps file}; shift 2 ;;
+      *) die "unknown argument: $1" 64 ;;
+    esac
+  done
+  [[ $command == --check-profile || $command == --evaluate-ps ]] || die "unknown command: $command" 64
+  [[ -n $model && -n $policy ]] || die '--model and --execution-policy are required' 64
+  [[ $policy == gpu-only || $policy == gpu-primary-partial ]] || die "unknown execution policy: $policy" 64
+  load_profile "$model" "$profiles"
+  case "$policy:$profile_mode" in
+    gpu-only:GPU_ONLY|gpu-primary-partial:GPU_PRIMARY_PARTIAL_OFFLOAD) ;;
+    *) die "RUNTIME_PROFILE_VIOLATION: requested $policy does not match accepted $profile_mode profile" 69 ;;
+  esac
+  if [[ $command == --check-profile ]]; then emit_profile; return 0; fi
+  [[ -n $ps_file && -r $ps_file ]] || die '--ps-file is required and must be readable for --evaluate-ps' 64
+  local processor split cpu gpu result
+  processor=$(active_processor_text "$model" "$ps_file") || die "UNPROVEN: no active Ollama processor row for $model" 69
+  split=$(parse_processor_split "$processor") || die "UNPROVEN: unparseable Ollama processor split: $processor" 69
+  read -r cpu gpu <<< "$split"
+  if result=$(classify_processor_split "$profile_mode" "$min_gpu" "$max_cpu" "$cpu" "$gpu"); then :; else true; fi
+  emit_profile
+  printf 'observed_processor: %s\nobserved_cpu_percent: %s\nobserved_gpu_percent: %s\npolicy_result: %s\n' "$processor" "$cpu" "$gpu" "$result"
+  [[ $result == GPU_ONLY || $result == GPU_PRIMARY_PARTIAL_OFFLOAD ]]
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi
