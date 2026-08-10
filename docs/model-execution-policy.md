@@ -33,3 +33,13 @@ the operational evidence before output promotion.
 
 Normal profiles and torture observations are distinct. A torture result cannot
 broaden a normal accepted envelope.
+
+## Machine response transport
+
+Controlled runs use the appliance's fixed loopback-only
+`http://127.0.0.1:11434/api/generate` endpoint, not `ollama run` terminal
+rendering. `bin/run` writes only the structured response object's non-empty
+`response` text to its output artifact; it does not preserve HTTP framing,
+JSON envelopes, CLI progress, or terminal presentation. This is a transport
+boundary, not output sanitization: model-provided response text remains exact
+and is still subject to the consumer's strict parser.

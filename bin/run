@@ -59,7 +59,10 @@ YAML
 
 echo "[$job_id] running inference: model=$model"
 
-OLLAMA_DEBUG=1 ollama run "$model" "$prompt" > "$partial" 2>"$log" || {
+"$root/bin/ollama-machine-response" \
+  --model "$model" \
+  --prompt "$prompt" \
+  --output "$partial" 2>"$log" || {
   echo "[$job_id] inference failed; log: $log" >&2
   echo "status: failed" >> "$meta"
   exit 1

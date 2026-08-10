@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Write exactly one Ollama /api/generate response field to a file.
+
+This is a deliberately narrow appliance helper.  Its loopback endpoint is
+fixed, and callers cannot choose arbitrary HTTP targets or response envelopes.
+"""
+
+import argparse
+import json
+import sys
+import urllib.error
+import urllib.request
+
+
+ENDPOINT = "http://127.0.0.1:11434/api/generate"
+
+
+def response_bytes(model: str, prompt: str, opener=urllib.request.urlopen) -> bytes:
+    payload = json.dumps(
+        {"model": model, "prompt": prompt, "stream": False},
+        separators=(",", ":"),
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        ENDPOINT,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with opener(request, timeout=180) as response:
+        body = response.read()
+    try:
+        envelope = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"malformed Ollama machine response: {error}") from error
+    text = envelope.get("response") if isinstance(envelope, dict) else None
+    if not isinstance(text, str) or not text:
+        raise ValueError("Ollama machine response is missing a non-empty response field")
+    return text.encode("utf-8")
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        description="write the exact Ollama machine response text to an output file"
+    )
+    parser.add_argument("--model", required=True)
+    parser.add_argument("--prompt", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args(argv)
+    try:
+        data = response_bytes(args.model, args.prompt)
+        with open(args.output, "xb") as output:
+            output.write(data)
+    except (OSError, ValueError, urllib.error.URLError) as error:
+        print(f"machine response transport failed: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
