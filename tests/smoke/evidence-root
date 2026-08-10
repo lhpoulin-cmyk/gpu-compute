@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Raw job evidence is the one runtime-writable subtree of the canonical source
+# deployment.  This test is intentionally non-model and leaves no artifact.
+root=/srv/gpu-compute/evidence
+[[ $(id -un) == louis ]] || { echo "evidence-root check requires louis" >&2; exit 77; }
+[[ -d $root && ! -L $root ]] || { echo "evidence root missing or symlinked" >&2; exit 69; }
+[[ $(stat -c '%U:%G:%a' "$root") == louis:louis:755 ]] || { echo "unexpected evidence root ownership or mode" >&2; exit 69; }
+probe=$(mktemp -d "$root/.evidence-root-probe.XXXXXX")
+rmdir "$probe"
+echo "evidence-root: PASS"

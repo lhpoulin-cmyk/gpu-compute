@@ -14,6 +14,7 @@ check "bin/probe"             test -x /srv/gpu-compute/bin/probe
 check "bin/run"               test -x /srv/gpu-compute/bin/run
 check "bin/validate-output"   test -x /srv/gpu-compute/bin/validate-output
 check "bin/collect-evidence"  test -x /srv/gpu-compute/bin/collect-evidence
+check "evidence root contract" tests/smoke/evidence-root
 check "nvidia-smi available"  command -v nvidia-smi
 check "ollama available"      command -v ollama
 check "llama-cli available"   command -v llama-cli

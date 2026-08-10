@@ -41,6 +41,10 @@ done
 if [[ -n "$operator" ]]; then
   id "$operator" >/dev/null 2>&1 || { echo "operator user not found: $operator" >&2; exit 69; }
   chown -R "$operator:$operator" "$workspace/evidence" "$workspace/jobs" "$workspace/scratch" "$workspace/tmp"
+  # The controlled runner is an approved operator process.  Evidence is its
+  # only writable project subtree; source remains outside this ownership rule.
+  chown "$operator:$operator" "$workspace/evidence"
+  chmod 0755 "$workspace/evidence"
   if ! $template_mode; then
     chown -R "$operator:$operator" "$model_base/work" "$model_base/cache" "$model_base/output"
   fi

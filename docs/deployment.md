@@ -45,6 +45,13 @@ the `/mnt/models` fstab entry, and mounts it.
 Transfer the current source snapshot from the host checkout into `/srv/gpu-compute`.
 Do not place GitHub credentials or private SSH keys in the guest.
 
+Before any controlled run, provision the operational evidence root separately
+from the read-mostly source tree.  The approved runner executes as `louis` and
+must be able to create `/srv/gpu-compute/evidence/job-*`; the canonical root is
+therefore exactly `louis:louis`, mode `0755`.  Do not make the project root or
+source files broadly writable.  Verify this non-model contract with
+`tests/smoke/evidence-root` as `louis` after deployment or source-path migration.
+
 Then run the RTX 5070 Ti bootstrap:
 
 ```bash
