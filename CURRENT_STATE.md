@@ -193,6 +193,41 @@ and the RTX 5070 Ti. Raw evidence remains under
 `/srv/gpu-compute/evidence/task10q-qwen25-14b-runtime-20260811/`. This is
 runtime acceptance only; V2 production admission has not run.
 
+## 2026-08-11 Qwen2.5-Coder 32B runtime acceptance
+
+`qwen2.5-coder:32b-instruct-q4_K_M` is present in the durable Ollama model
+library. The installed manifest SHA-256 is
+`b92d6a0bd47ee79114298de0177bf920c05a706d12633950b3936778492bef41`.
+Its exact model blob is
+`ac3d1ba8aa77755dab3806d9024e9c385ea0d5b412d6bdf9157f8a4a7e9fc0d9`,
+19,851,336,384 bytes; its architecture is `qwen2`, parameter class 32.8B,
+quantization `Q4_K_M`, and model context metadata 32768. The config, template,
+and system blobs also matched the selected manifest exactly.
+
+One authorized pull completed successfully. Three and only three neutral
+non-streaming `/api/generate` probes then requested `num_ctx=4096` without any
+other generation override. Each returned HTTP 200, `done=true`,
+`done_reason=stop`, 42 prompt tokens, 6 evaluation tokens, and the exact
+21-byte response whose SHA-256 is
+`0c0798e15e34cfd496072aa8c7efc1958758710b3ce4b66064d9358c63ac26b8`.
+Cold total duration was 51.547 seconds, including a 47.580-second load. Warm
+total durations were 4.238 and 4.049 seconds. Effective runner context was
+4096 for every probe.
+
+Ollama reported 71% GPU / 29% CPU placement. NVIDIA evidence observed 14,634
+MiB peak VRAM; host available RAM remained at or above 14,011,752,448 bytes
+with no swap. The runner retained ordinary mmap behavior and had no
+`--no-mmap` override. Service and GPU health remained normal with no host
+pressure abort, OOM, CUDA error, XID, or failed unit.
+
+The exact empirical profile is `qwen25-coder-32b-katra-4096`, mode
+`GPU_PRIMARY_PARTIAL_OFFLOAD`, bound to the manifest, Q4_K_M quantization,
+`cuda-compute-katra`, `hv-katra`, and the RTX 5070 Ti. Raw evidence remains
+under `/srv/gpu-compute/evidence/20260811T194534Z-task10t-qwen25-32b-acquisition/`
+and `/srv/gpu-compute/evidence/task10t-qwen25-32b-runtime-20260811/`. This is
+runtime acceptance for the same-family scale control only; V2 production
+admission has not run.
+
 ## 2026-08-10 deployment-path retirement
 
 `cuda-compute` is the former project/runtime name. The former deployment path

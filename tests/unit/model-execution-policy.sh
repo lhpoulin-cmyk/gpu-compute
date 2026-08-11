@@ -38,5 +38,9 @@ printf 'profile\tqwen2.5-coder:14b-instruct-q4_K_M\tqwen25-exact\tQ4_K_M\tcuda-c
 if find_profile "$fixture" qwen2.5-coder:14b-instruct-q4_K_M qwen25-exact cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[PASS] exact Qwen2.5-Coder profile applies\n'; else printf '[FAIL] exact Qwen2.5-Coder profile applies\n' >&2; failures=$((failures + 1)); fi
 if find_profile "$fixture" qwen2.5-coder:14b-instruct-q4_K_M different cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[FAIL] Qwen2.5-Coder digest mismatch incorrectly applies profile\n' >&2; failures=$((failures + 1)); else printf '[PASS] Qwen2.5-Coder digest mismatch leaves profile stale\n'; fi
 
+printf 'profile\tqwen2.5-coder:32b-instruct-q4_K_M\tqwen25-32b-exact\tQ4_K_M\tcuda-compute-katra\thv-katra\tNVIDIA GeForce RTX 5070 Ti\tGPU_PRIMARY_PARTIAL_OFFLOAD\t71\t29\t14634\tACCEPTED\n' >> "$fixture"
+if find_profile "$fixture" qwen2.5-coder:32b-instruct-q4_K_M qwen25-32b-exact cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[PASS] exact Qwen2.5-Coder 32B profile applies\n'; else printf '[FAIL] exact Qwen2.5-Coder 32B profile applies\n' >&2; failures=$((failures + 1)); fi
+if find_profile "$fixture" qwen2.5-coder:32b-instruct-q4_K_M different cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[FAIL] Qwen2.5-Coder 32B digest mismatch incorrectly applies profile\n' >&2; failures=$((failures + 1)); else printf '[PASS] Qwen2.5-Coder 32B digest mismatch leaves profile stale\n'; fi
+
 [[ $failures -eq 0 ]] || exit 1
 echo 'model-execution-policy: PASS'

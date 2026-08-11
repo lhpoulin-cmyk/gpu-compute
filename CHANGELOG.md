@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-11 Qwen2.5-Coder 32B runtime profile
+
+- Register the exact Qwen2.5-Coder 32B Q4_K_M artifact's measured Katra
+  profile at context 4096: 71% GPU / 29% CPU and 14,634 MiB peak VRAM.
+- Preserve the one-pull, three-probe no-retry runtime evidence under the
+  canonical guest evidence root. Runtime acceptance does not grant V2
+  production admission.
+
 ## 2026-08-11 Qwen2.5-Coder 14B runtime profile
 
 - Register the exact Qwen2.5-Coder 14B Q4_K_M artifact's measured Katra
