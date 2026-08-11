@@ -13,6 +13,8 @@ expect GPU_ONLY "$(classify_processor_split GPU_ONLY 100 0 0 100)" '0%/100% CPU/
 expect GPU_PRIMARY_PARTIAL_OFFLOAD "$(classify_processor_split GPU_PRIMARY_PARTIAL_OFFLOAD 80 20 20 80)" '20%/80% Qwen profile accepted'
 expect GPU_PRIMARY_PARTIAL_OFFLOAD "$(classify_processor_split GPU_PRIMARY_PARTIAL_OFFLOAD 80 20 19 81)" '19%/81% Qwen profile accepted'
 expect RUNTIME_PROFILE_VIOLATION "$(classify_processor_split GPU_PRIMARY_PARTIAL_OFFLOAD 80 20 21 79 || true)" '21%/79% violates Qwen profile'
+expect GPU_PRIMARY_PARTIAL_OFFLOAD "$(classify_processor_split GPU_PRIMARY_PARTIAL_OFFLOAD 88 12 12 88)" '12%/88% Devstral profile accepted'
+expect RUNTIME_PROFILE_VIOLATION "$(classify_processor_split GPU_PRIMARY_PARTIAL_OFFLOAD 88 12 13 87 || true)" '13%/87% violates Devstral profile'
 expect GPU_PRIMARY_PARTIAL_OFFLOAD "$(classify_processor_split GPU_PRIMARY_PARTIAL_OFFLOAD 51 49 49 51)" '49%/51% is GPU-primary for hypothetical profile'
 expect CPU_FALLBACK "$(classify_processor_split GPU_PRIMARY_PARTIAL_OFFLOAD 50 50 50 50 || true)" '50%/50% fails global floor'
 expect CPU_FALLBACK "$(classify_processor_split GPU_PRIMARY_PARTIAL_OFFLOAD 51 49 60 40 || true)" 'GPU minority is CPU_FALLBACK'
@@ -27,6 +29,10 @@ trap 'rm -f "$fixture"' EXIT
 printf '# header\nprofile\tqwen3-coder:30b\texact\tQ4_K_M\tcuda-compute-katra\thv-katra\tNVIDIA GeForce RTX 5070 Ti\tGPU_PRIMARY_PARTIAL_OFFLOAD\t80\t20\t14890\tACCEPTED\n' > "$fixture"
 if find_profile "$fixture" qwen3-coder:30b exact cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[PASS] exact digest profile applies\n'; else printf '[FAIL] exact digest profile applies\n' >&2; failures=$((failures + 1)); fi
 if find_profile "$fixture" qwen3-coder:30b different cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[FAIL] digest mismatch incorrectly applies profile\n' >&2; failures=$((failures + 1)); else printf '[PASS] digest mismatch leaves profile stale\n'; fi
+
+printf 'profile\tdevstral-small-2:24b-instruct-2512-q4_K_M\tdevstral-exact\tQ4_K_M\tcuda-compute-katra\thv-katra\tNVIDIA GeForce RTX 5070 Ti\tGPU_PRIMARY_PARTIAL_OFFLOAD\t88\t12\t14648\tACCEPTED\n' >> "$fixture"
+if find_profile "$fixture" devstral-small-2:24b-instruct-2512-q4_K_M devstral-exact cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[PASS] exact Devstral profile applies\n'; else printf '[FAIL] exact Devstral profile applies\n' >&2; failures=$((failures + 1)); fi
+if find_profile "$fixture" devstral-small-2:24b-instruct-2512-q4_K_M different cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[FAIL] Devstral digest mismatch incorrectly applies profile\n' >&2; failures=$((failures + 1)); else printf '[PASS] Devstral digest mismatch leaves profile stale\n'; fi
 
 [[ $failures -eq 0 ]] || exit 1
 echo 'model-execution-policy: PASS'

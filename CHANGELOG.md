@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11 Devstral runtime profile
+
+- Register the gpu-cp accepted exact Devstral Small 2 24B Q4 profile at the
+  observed 88% GPU / 12% CPU envelope and add fail-closed boundary tests.
+
 ## 2026-08-10 idempotent controlled inference
 
 - Add durable caller invocation identities, retained invocation responses, and

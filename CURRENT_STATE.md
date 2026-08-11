@@ -97,6 +97,25 @@ against `config/model-runtime-profiles.tsv`; the ambiguous `--allow-cpu` switch
 is retired. CPU fallback remains rejected. Raw pull, run, and post-run evidence
 remains under the guest's operational `evidence/` directory.
 
+## 2026-08-11 Devstral Small 2 24B runtime acceptance
+
+`devstral-small-2:24b-instruct-2512-q4_K_M` is present in the durable Ollama
+model library. Its local manifest digest is
+`24277f07f62db8f9cb68e9dfc679ea1818a7fbac47a50eff0a701d3f645b63c8`;
+the model layer is 15,177,370,240 bytes, architecture `mistral3`, 24.0B
+parameters, and quantization `Q4_K_M`.
+
+Three identical neutral machine-response probes at context 4096 returned
+non-empty output and consistently reported `12%/88% CPU/GPU`, with 14,648 MiB
+VRAM used. The cold run completed in 31.15 seconds and two warm repeats in 0.92
+and 0.91 seconds. Host available RAM stayed above 15.0 GB with no swap, OOM,
+failed unit, or harmful pressure.
+
+`gpu-cp` accepted the exact-artifact `GPU_PRIMARY_PARTIAL_OFFLOAD` profile at
+GPU >= 88% and CPU <= 12%. `bin/run` now enforces that profile independently
+of the existing Qwen 80%/20% profile. Runtime acceptance does not grant coding
+qualification or supervised-production admission.
+
 ## 2026-08-10 deployment-path retirement
 
 `cuda-compute` is the former project/runtime name. The former deployment path

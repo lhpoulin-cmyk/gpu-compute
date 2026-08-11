@@ -1,3 +1,4 @@
 # profile_id	tag	manifest_digest	quantization	appliance	host	accelerator	mode	minimum_gpu_percent	maximum_cpu_percent	observed_vram_mib	status
 llama3.2-1b-katra-gpu-only	llama3.2:1b	baf6a787fdffd633537aa2eb51cfd54cb93ff08e28040095462bb63daf552878	Q8_0	cuda-compute-katra	hv-katra	NVIDIA GeForce RTX 5070 Ti	GPU_ONLY	100	0	0	ACCEPTED
 qwen3-coder-30b-katra-partial	qwen3-coder:30b	06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca	Q4_K_M	cuda-compute-katra	hv-katra	NVIDIA GeForce RTX 5070 Ti	GPU_PRIMARY_PARTIAL_OFFLOAD	80	20	14890	ACCEPTED
+devstral-small-2-24b-katra-partial	devstral-small-2:24b-instruct-2512-q4_K_M	24277f07f62db8f9cb68e9dfc679ea1818a7fbac47a50eff0a701d3f645b63c8	Q4_K_M	cuda-compute-katra	hv-katra	NVIDIA GeForce RTX 5070 Ti	GPU_PRIMARY_PARTIAL_OFFLOAD	88	12	14648	ACCEPTED
