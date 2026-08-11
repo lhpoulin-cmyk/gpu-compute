@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-11 Ollama failure-envelope evidence
+
+- Advance evaluator-only evidence retention to `OLLAMA_RESPONSE_META_V2`,
+  recording field presence separately from value before terminality checks.
+- Retain nonterminal response bytes as hash-bound `partial-response.txt`, never
+  as successful `response.txt`, and distinguish explicit `done=false`, missing
+  `done`, and invalid-envelope failure states in `bin/run-status`.
+- Keep `OLLAMA_MACHINE_RESPONSE_V1` generation transport and successful
+  response bytes unchanged.
+
 ## 2026-08-11 Ollama completion evidence
 
 - Retain a hash-bound `OLLAMA_RESPONSE_META_V1` sidecar for successful

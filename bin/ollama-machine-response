@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Write one exact Ollama response field plus trusted completion evidence.
+"""Retain exact Ollama response bytes and bounded envelope evidence.
 
-This is a deliberately narrow appliance helper.  Its loopback endpoint is
-fixed, and callers cannot choose arbitrary HTTP targets or response envelopes.
+The loopback endpoint and request shape are fixed. A syntactically valid API
+envelope is reduced to evaluator-only whitelisted evidence before terminality
+is enforced. Nonterminal response bytes are retained only as partial evidence.
 """
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -15,8 +17,8 @@ import urllib.request
 
 
 ENDPOINT = "http://127.0.0.1:11434/api/generate"
-EVIDENCE_CONTRACT = "OLLAMA_RESPONSE_META_V1"
-COMPLETION_FIELDS = (
+EVIDENCE_CONTRACT = "OLLAMA_RESPONSE_META_V2"
+OPTIONAL_NUMERIC_FIELDS = (
     "prompt_eval_count",
     "eval_count",
     "total_duration",
@@ -24,11 +26,18 @@ COMPLETION_FIELDS = (
     "prompt_eval_duration",
     "eval_duration",
 )
+EXIT_NONTERMINAL = 20
+EXIT_DONE_MISSING = 21
+EXIT_INVALID_ENVELOPE = 22
+
+
+def _present(envelope: dict, field: str) -> tuple[bool, object | None]:
+    return field in envelope, envelope.get(field)
 
 
 def response_and_metadata(
     model: str, prompt: str, opener=urllib.request.urlopen
-) -> tuple[bytes, bytes]:
+) -> tuple[bytes | None, bytes, str]:
     payload = json.dumps(
         {"model": model, "prompt": prompt, "stream": False},
         separators=(",", ":"),
@@ -41,40 +50,83 @@ def response_and_metadata(
     )
     with opener(request, timeout=180) as response:
         body = response.read()
+
+    base = {
+        "evidence_contract": EVIDENCE_CONTRACT,
+        "envelope_body_byte_count": len(body),
+        "envelope_body_sha256": hashlib.sha256(body).hexdigest(),
+    }
     try:
         envelope = json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ValueError(f"malformed Ollama machine response: {error}") from error
+        metadata = {
+            **base,
+            "envelope_syntax_valid": False,
+            "failure_classification": "OLLAMA_MALFORMED_ENVELOPE",
+            "parse_error_type": type(error).__name__,
+        }
+        return None, _metadata_bytes(metadata), "INVALID"
     if not isinstance(envelope, dict):
-        raise ValueError("Ollama machine response envelope is not an object")
-    text = envelope.get("response")
-    if not isinstance(text, str) or not text:
-        raise ValueError("Ollama machine response is missing a non-empty response field")
-    response_model = envelope.get("model")
-    if not isinstance(response_model, str) or response_model != model:
-        raise ValueError("Ollama machine response model identity is invalid")
-    if envelope.get("done") is not True:
-        raise ValueError("Ollama machine response is not terminal")
-    done_reason_present = "done_reason" in envelope
-    done_reason = envelope.get("done_reason")
-    if done_reason_present and not isinstance(done_reason, str):
-        raise ValueError("Ollama machine response done_reason is invalid")
+        metadata = {
+            **base,
+            "envelope_syntax_valid": True,
+            "failure_classification": "OLLAMA_ENVELOPE_NOT_OBJECT",
+        }
+        return None, _metadata_bytes(metadata), "INVALID"
+
+    model_present, response_model = _present(envelope, "model")
+    response_present, response_text = _present(envelope, "response")
+    done_present, done = _present(envelope, "done")
+    reason_present, done_reason = _present(envelope, "done_reason")
+    response_bytes = response_text.encode("utf-8") if isinstance(response_text, str) and response_text else None
     metadata = {
-        "evidence_contract": EVIDENCE_CONTRACT,
+        **base,
+        "envelope_syntax_valid": True,
+        "model_present": model_present,
         "model": response_model,
-        "done": True,
-        "done_reason_present": done_reason_present,
-        "done_reason": done_reason if done_reason_present else None,
+        "response_present": response_present,
+        "response_byte_count": len(response_bytes) if response_bytes is not None else None,
+        "response_sha256": hashlib.sha256(response_bytes).hexdigest() if response_bytes is not None else None,
+        "done_present": done_present,
+        "done": done,
+        "done_reason_present": reason_present,
+        "done_reason": done_reason,
     }
-    for field in COMPLETION_FIELDS:
-        value = envelope.get(field)
-        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-            raise ValueError(f"Ollama machine response {field} is invalid")
+    for field in OPTIONAL_NUMERIC_FIELDS:
+        present, value = _present(envelope, field)
+        metadata[f"{field}_present"] = present
         metadata[field] = value
-    metadata_bytes = (
-        json.dumps(metadata, sort_keys=True, separators=(",", ":")) + "\n"
-    ).encode("utf-8")
-    return text.encode("utf-8"), metadata_bytes
+
+    if not isinstance(response_model, str) or response_model != model:
+        metadata["failure_classification"] = "OLLAMA_MODEL_IDENTITY_INVALID"
+        return response_bytes, _metadata_bytes(metadata), "INVALID"
+    if response_bytes is None:
+        metadata["failure_classification"] = "OLLAMA_RESPONSE_MISSING_OR_EMPTY"
+        return None, _metadata_bytes(metadata), "INVALID"
+    if reason_present and not isinstance(done_reason, str):
+        metadata["failure_classification"] = "OLLAMA_DONE_REASON_INVALID"
+        return response_bytes, _metadata_bytes(metadata), "INVALID"
+    for field in OPTIONAL_NUMERIC_FIELDS:
+        if metadata[f"{field}_present"]:
+            value = metadata[field]
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                metadata["failure_classification"] = f"OLLAMA_{field.upper()}_INVALID"
+                return response_bytes, _metadata_bytes(metadata), "INVALID"
+    if not done_present:
+        metadata["failure_classification"] = "OLLAMA_DONE_FIELD_MISSING"
+        return response_bytes, _metadata_bytes(metadata), "DONE_MISSING"
+    if done is False:
+        metadata["failure_classification"] = "OLLAMA_NONTERMINAL_RESPONSE"
+        return response_bytes, _metadata_bytes(metadata), "NONTERMINAL"
+    if done is not True:
+        metadata["failure_classification"] = "OLLAMA_DONE_FIELD_INVALID"
+        return response_bytes, _metadata_bytes(metadata), "INVALID"
+    metadata["failure_classification"] = None
+    return response_bytes, _metadata_bytes(metadata), "TERMINAL"
+
+
+def _metadata_bytes(metadata: dict) -> bytes:
+    return (json.dumps(metadata, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 
 def _write_exclusive(path: Path, data: bytes) -> None:
@@ -86,31 +138,33 @@ def _write_exclusive(path: Path, data: bytes) -> None:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="write the exact Ollama machine response text to an output file"
+        description="retain exact Ollama response bytes and bounded envelope evidence"
     )
     parser.add_argument("--model", required=True)
     parser.add_argument("--prompt", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--partial-output", required=True)
     parser.add_argument("--metadata-output", required=True)
     args = parser.parse_args(argv)
-    output_path = Path(args.output)
-    metadata_path = Path(args.metadata_output)
-    created: list[Path] = []
     try:
-        data, metadata = response_and_metadata(args.model, args.prompt)
-        _write_exclusive(output_path, data)
-        created.append(output_path)
-        _write_exclusive(metadata_path, metadata)
-        created.append(metadata_path)
-    except (OSError, ValueError, urllib.error.URLError) as error:
-        for path in created:
-            try:
-                path.unlink()
-            except FileNotFoundError:
-                pass
+        response, metadata, outcome = response_and_metadata(args.model, args.prompt)
+        _write_exclusive(Path(args.metadata_output), metadata)
+        if response is not None:
+            destination = Path(args.output if outcome == "TERMINAL" else args.partial_output)
+            _write_exclusive(destination, response)
+    except (OSError, urllib.error.URLError) as error:
         print(f"machine response transport failed: {error}", file=sys.stderr)
         return 1
-    return 0
+    if outcome == "TERMINAL":
+        return 0
+    if outcome == "NONTERMINAL":
+        print("OLLAMA_NONTERMINAL_RESPONSE", file=sys.stderr)
+        return EXIT_NONTERMINAL
+    if outcome == "DONE_MISSING":
+        print("OLLAMA_DONE_FIELD_MISSING", file=sys.stderr)
+        return EXIT_DONE_MISSING
+    print("OLLAMA_INVALID_ENVELOPE", file=sys.stderr)
+    return EXIT_INVALID_ENVELOPE
 
 
 if __name__ == "__main__":

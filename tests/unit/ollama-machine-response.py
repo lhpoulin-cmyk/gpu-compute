@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit checks for the fixed loopback machine-response helper."""
+"""Unit checks for bounded Ollama envelope and response evidence."""
 
 import importlib.machinery
 import importlib.util
@@ -31,21 +31,21 @@ class FakeResponse:
         return self.body
 
 
-def opener_for(body, captured):
+def opener_for(body, captured=None):
+    captured = {} if captured is None else captured
     def opener(request, timeout):
         captured["url"] = request.full_url
         captured["timeout"] = timeout
         captured["payload"] = request.data
         return FakeResponse(body)
-
     return opener
 
 
-def envelope(done_reason="stop"):
+def envelope(done=True, done_reason="stop"):
     return {
         "model": "qwen3-coder:30b",
         "response": 'line one\n"quotes" and \\\\slashes',
-        "done": True,
+        "done": done,
         "done_reason": done_reason,
         "prompt_eval_count": 17,
         "eval_count": 23,
@@ -58,79 +58,107 @@ def envelope(done_reason="stop"):
 
 for reason in ("stop", "length"):
     captured = {}
-    source = envelope(reason)
-    response, metadata_bytes = helper.response_and_metadata(
-        "qwen3-coder:30b",
-        "neutral prompt",
-        opener_for(json.dumps(source).encode("utf-8"), captured),
+    source = envelope(done_reason=reason)
+    response, metadata_bytes, outcome = helper.response_and_metadata(
+        "qwen3-coder:30b", "neutral prompt",
+        opener_for(json.dumps(source).encode(), captured),
     )
-    assert response == source["response"].encode("utf-8")
     metadata = json.loads(metadata_bytes)
-    assert metadata == {
-        "evidence_contract": "OLLAMA_RESPONSE_META_V1",
-        "model": "qwen3-coder:30b",
-        "done": True,
-        "done_reason_present": True,
-        "done_reason": reason,
-        "prompt_eval_count": 17,
-        "eval_count": 23,
-        "total_duration": 101,
-        "load_duration": 11,
-        "prompt_eval_duration": 31,
-        "eval_duration": 59,
-    }
+    assert outcome == "TERMINAL"
+    assert response == source["response"].encode()
+    assert metadata["evidence_contract"] == "OLLAMA_RESPONSE_META_V2"
+    assert metadata["done_present"] is True and metadata["done"] is True
+    assert metadata["done_reason_present"] is True
+    assert metadata["done_reason"] == reason
+    assert metadata["response_byte_count"] == len(response)
+    assert metadata["prompt_eval_count_present"] is True
+    assert metadata["prompt_eval_count"] == 17
+    assert metadata["eval_count_present"] is True
+    assert metadata["eval_count"] == 23
     assert captured["url"] == "http://127.0.0.1:11434/api/generate"
-    assert captured["timeout"] == 180
-    assert json.loads(captured["payload"].decode("utf-8")) == {
-        "model": "qwen3-coder:30b",
-        "prompt": "neutral prompt",
-        "stream": False,
+    assert json.loads(captured["payload"].decode()) == {
+        "model": "qwen3-coder:30b", "prompt": "neutral prompt", "stream": False,
     }
 
-absent_reason = envelope()
-del absent_reason["done_reason"]
-_, absent_metadata = helper.response_and_metadata(
-    "qwen3-coder:30b", "neutral", opener_for(json.dumps(absent_reason).encode(), {})
+nonterminal = envelope(done=False)
+response, metadata_bytes, outcome = helper.response_and_metadata(
+    "qwen3-coder:30b", "neutral", opener_for(json.dumps(nonterminal).encode())
 )
-assert json.loads(absent_metadata)["done_reason_present"] is False
-assert json.loads(absent_metadata)["done_reason"] is None
+metadata = json.loads(metadata_bytes)
+assert outcome == "NONTERMINAL"
+assert response == nonterminal["response"].encode()
+assert metadata["done_present"] is True and metadata["done"] is False
+assert metadata["failure_classification"] == "OLLAMA_NONTERMINAL_RESPONSE"
 
-invalid_envelopes = [
-    b"not-json",
-    b"[]",
-    b"{}",
-    json.dumps({**envelope(), "response": ""}).encode(),
-    json.dumps({**envelope(), "done": False}).encode(),
-    json.dumps({**envelope(), "done_reason": 7}).encode(),
-    json.dumps({**envelope(), "eval_count": "23"}).encode(),
-    json.dumps({**envelope(), "model": "different"}).encode(),
-]
-for malformed in invalid_envelopes:
-    try:
-        helper.response_and_metadata(
-            "qwen3-coder:30b", "neutral", opener_for(malformed, {})
-        )
-    except ValueError:
-        pass
-    else:
-        raise AssertionError(f"malformed response was accepted: {malformed!r}")
+missing_done = envelope()
+del missing_done["done"]
+response, metadata_bytes, outcome = helper.response_and_metadata(
+    "qwen3-coder:30b", "neutral", opener_for(json.dumps(missing_done).encode())
+)
+metadata = json.loads(metadata_bytes)
+assert outcome == "DONE_MISSING"
+assert response == missing_done["response"].encode()
+assert metadata["done_present"] is False and metadata["done"] is None
+assert metadata["failure_classification"] == "OLLAMA_DONE_FIELD_MISSING"
 
-with tempfile.TemporaryDirectory() as temp:
-    output = pathlib.Path(temp) / "response.txt"
-    metadata = pathlib.Path(temp) / "ollama-response-meta.json"
-    original = helper.response_and_metadata
-    expected_metadata = b'{"evidence_contract":"OLLAMA_RESPONSE_META_V1"}\n'
-    helper.response_and_metadata = lambda *_args: (
-        b'{"probe":"exact"}', expected_metadata
+optional_absent = envelope()
+for field in helper.OPTIONAL_NUMERIC_FIELDS:
+    del optional_absent[field]
+_, metadata_bytes, outcome = helper.response_and_metadata(
+    "qwen3-coder:30b", "neutral", opener_for(json.dumps(optional_absent).encode())
+)
+metadata = json.loads(metadata_bytes)
+assert outcome == "TERMINAL"
+for field in helper.OPTIONAL_NUMERIC_FIELDS:
+    assert metadata[f"{field}_present"] is False
+    assert metadata[field] is None
+
+for body, classification in (
+    (b"not-json", "OLLAMA_MALFORMED_ENVELOPE"),
+    (b"[]", "OLLAMA_ENVELOPE_NOT_OBJECT"),
+    (json.dumps({key: value for key, value in envelope().items() if key != "response"}).encode(), "OLLAMA_RESPONSE_MISSING_OR_EMPTY"),
+    (json.dumps({**envelope(), "response": ""}).encode(), "OLLAMA_RESPONSE_MISSING_OR_EMPTY"),
+    (json.dumps({**envelope(), "done": "true"}).encode(), "OLLAMA_DONE_FIELD_INVALID"),
+):
+    response, metadata_bytes, outcome = helper.response_and_metadata(
+        "qwen3-coder:30b", "neutral", opener_for(body)
     )
-    try:
-        assert helper.main([
-            "--model", "qwen3-coder:30b", "--prompt", "neutral",
-            "--output", str(output), "--metadata-output", str(metadata),
-        ]) == 0
-    finally:
-        helper.response_and_metadata = original
-    assert output.read_bytes() == b'{"probe":"exact"}'
-    assert metadata.read_bytes() == expected_metadata
+    assert outcome == "INVALID"
+    assert json.loads(metadata_bytes)["failure_classification"] == classification
+
+
+def run_main(outcome, expected_exit):
+    with tempfile.TemporaryDirectory() as temporary:
+        root = pathlib.Path(temporary)
+        output = root / "response.txt"
+        partial = root / "partial-response.txt"
+        metadata = root / "ollama-envelope-meta.json"
+        original = helper.response_and_metadata
+        helper.response_and_metadata = lambda *_args: (
+            b'{"probe":"exact"}',
+            b'{"evidence_contract":"OLLAMA_RESPONSE_META_V2"}\n',
+            outcome,
+        )
+        try:
+            actual = helper.main([
+                "--model", "qwen3-coder:30b", "--prompt", "neutral",
+                "--output", str(output), "--partial-output", str(partial),
+                "--metadata-output", str(metadata),
+            ])
+        finally:
+            helper.response_and_metadata = original
+        assert actual == expected_exit
+        assert metadata.read_bytes() == b'{"evidence_contract":"OLLAMA_RESPONSE_META_V2"}\n'
+        if outcome == "TERMINAL":
+            assert output.read_bytes() == b'{"probe":"exact"}'
+            assert not partial.exists()
+        else:
+            assert partial.read_bytes() == b'{"probe":"exact"}'
+            assert not output.exists()
+
+
+run_main("TERMINAL", 0)
+run_main("NONTERMINAL", helper.EXIT_NONTERMINAL)
+run_main("DONE_MISSING", helper.EXIT_DONE_MISSING)
 
 print("ollama-machine-response: PASS")

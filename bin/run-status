@@ -8,5 +8,28 @@ printf 'invocation_id: %s\nstate: %s\n' "$2" "$(cat "$directory/state" 2>/dev/nu
 [[ -f "$directory/job-id" ]] && printf 'job_id: %s\n' "$(cat "$directory/job-id")"
 [[ -f "$directory/response.txt" ]] && printf 'response_available: yes\n' || printf 'response_available: no\n'
 [[ -f "$directory/output-sha256" ]] && printf 'output_sha256: %s\n' "$(cat "$directory/output-sha256")"
-[[ -f "$directory/ollama-response-meta.json" ]] && printf 'completion_meta_available: yes\n' || printf 'completion_meta_available: no\n'
+metadata=
+[[ -f "$directory/ollama-envelope-meta.json" ]] && metadata="$directory/ollama-envelope-meta.json"
+[[ -z "$metadata" && -f "$directory/ollama-response-meta.json" ]] && metadata="$directory/ollama-response-meta.json"
+[[ -n "$metadata" ]] && printf 'completion_meta_available: yes\n' || printf 'completion_meta_available: no\n'
 [[ -f "$directory/completion-meta-sha256" ]] && printf 'completion_meta_sha256: %s\n' "$(cat "$directory/completion-meta-sha256")"
+[[ -f "$directory/partial-response.txt" ]] && printf 'partial_response_available: yes\n' || printf 'partial_response_available: no\n'
+[[ -f "$directory/partial-response-sha256" ]] && printf 'partial_response_sha256: %s\n' "$(cat "$directory/partial-response-sha256")"
+if [[ -n "$metadata" ]]; then
+  python3 - "$metadata" <<'PY'
+import json
+import sys
+
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+def show(name):
+    print(f"{name}: {json.dumps(value.get(name), separators=(',', ':'))}")
+for field in (
+    "evidence_contract", "failure_classification", "model_present", "model",
+    "response_present", "response_byte_count", "response_sha256",
+    "done_present", "done", "done_reason_present", "done_reason",
+    "prompt_eval_count_present", "prompt_eval_count", "eval_count_present",
+    "eval_count",
+):
+    show(field)
+PY
+fi

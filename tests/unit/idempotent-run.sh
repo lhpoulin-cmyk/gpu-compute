@@ -14,15 +14,27 @@ cat > "$work/appliance/bin/ollama-machine-response" <<'SH'
 printf 'launch\n' >> "${FAKE_LAUNCHES:?}"
 [[ -z ${FAKE_DELAY:-} ]] || sleep "$FAKE_DELAY"
 [[ -z ${FAKE_FAIL:-} ]] || exit 1
+output= partial= metadata=
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --output) printf 'response' > "$2"; shift 2 ;;
-    --metadata-output)
-      printf '%s\n' '{"done":true,"done_reason":"stop","done_reason_present":true,"eval_count":1,"eval_duration":1,"evidence_contract":"OLLAMA_RESPONSE_META_V1","load_duration":1,"model":"model","prompt_eval_count":1,"prompt_eval_duration":1,"total_duration":1}' > "$2"
-      shift 2 ;;
+    --output) output=$2; shift 2 ;;
+    --partial-output) partial=$2; shift 2 ;;
+    --metadata-output) metadata=$2; shift 2 ;;
     *) shift ;;
   esac
 done
+if [[ -n ${FAKE_NONTERMINAL:-} ]]; then
+  printf 'partial-response' > "$partial"
+  printf '%s\n' '{"done":false,"done_present":true,"done_reason":"stop","done_reason_present":true,"eval_count":1,"eval_count_present":true,"evidence_contract":"OLLAMA_RESPONSE_META_V2","failure_classification":"OLLAMA_NONTERMINAL_RESPONSE","model":"model","model_present":true,"prompt_eval_count":1,"prompt_eval_count_present":true,"response_byte_count":16,"response_present":true,"response_sha256":"x"}' > "$metadata"
+  exit 20
+fi
+if [[ -n ${FAKE_DONE_MISSING:-} ]]; then
+  printf 'partial-response' > "$partial"
+  printf '%s\n' '{"done":null,"done_present":false,"done_reason":null,"done_reason_present":false,"eval_count":null,"eval_count_present":false,"evidence_contract":"OLLAMA_RESPONSE_META_V2","failure_classification":"OLLAMA_DONE_FIELD_MISSING","model":"model","model_present":true,"prompt_eval_count":null,"prompt_eval_count_present":false,"response_byte_count":16,"response_present":true,"response_sha256":"x"}' > "$metadata"
+  exit 21
+fi
+printf 'response' > "$output"
+printf '%s\n' '{"done":true,"done_present":true,"done_reason":"stop","done_reason_present":true,"eval_count":1,"eval_count_present":true,"evidence_contract":"OLLAMA_RESPONSE_META_V2","failure_classification":null,"model":"model","model_present":true,"prompt_eval_count":1,"prompt_eval_count_present":true,"response_byte_count":8,"response_present":true,"response_sha256":"x"}' > "$metadata"
 SH
 for command in findmnt systemctl; do cat > "$work/fake/$command" <<'SH'
 #!/usr/bin/env bash
@@ -48,8 +60,8 @@ grep -q 'state: SUCCEEDED' <<< "$status"
 grep -q 'completion_meta_available: yes' <<< "$status"
 grep -q '^completion_meta_sha256: ' <<< "$status"
 job=$(cat "$work/appliance/evidence/invocations/$id/job-id")
-cmp "$work/appliance/evidence/invocations/$id/ollama-response-meta.json" "$work/appliance/evidence/$job/ollama-response-meta.json"
-grep -q '^response_evidence_contract: OLLAMA_RESPONSE_META_V1$' "$work/appliance/evidence/$job/meta.yaml"
+cmp "$work/appliance/evidence/invocations/$id/ollama-envelope-meta.json" "$work/appliance/evidence/$job/ollama-envelope-meta.json"
+grep -q '^response_evidence_contract: OLLAMA_RESPONSE_META_V2$' "$work/appliance/evidence/$job/meta.yaml"
 grep -q '^completion_meta_sha256: ' "$work/appliance/evidence/$job/meta.yaml"
 status=$("$work/appliance/bin/run-status" --invocation-id alpha-test-family-C03-t0002-abcdef)
 grep -q 'state: NOT_STARTED' <<< "$status"
@@ -62,4 +74,23 @@ failed=alpha-test-family-C03-t0004-abcdef
 ! FAKE_LAUNCHES="$work/launches" FAKE_FAIL=1 PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$failed" --model model --prompt prompt --execution-policy p >/dev/null 2>&1
 ! FAKE_LAUNCHES="$work/launches" PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$failed" --model model --prompt prompt --execution-policy p >/dev/null 2>&1
 [[ $(wc -l < "$work/launches") == 3 ]]
+nonterminal=alpha-test-family-C03-t0005-abcdef
+! FAKE_LAUNCHES="$work/launches" FAKE_NONTERMINAL=1 PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$nonterminal" --model model --prompt prompt --execution-policy p >/dev/null 2>&1
+! FAKE_LAUNCHES="$work/launches" PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$nonterminal" --model model --prompt prompt --execution-policy p >/dev/null 2>&1
+[[ $(wc -l < "$work/launches") == 4 ]]
+status=$("$work/appliance/bin/run-status" --invocation-id "$nonterminal")
+grep -q 'state: FAILED_OLLAMA_NONTERMINAL_RESPONSE' <<< "$status"
+grep -q 'partial_response_available: yes' <<< "$status"
+grep -q 'done_present: true' <<< "$status"
+grep -q 'done: false' <<< "$status"
+grep -q 'failure_classification: "OLLAMA_NONTERMINAL_RESPONSE"' <<< "$status"
+[[ ! -e "$work/appliance/evidence/invocations/$nonterminal/response.txt" ]]
+[[ -e "$work/appliance/evidence/invocations/$nonterminal/partial-response.txt" ]]
+missing=alpha-test-family-C03-t0006-abcdef
+! FAKE_LAUNCHES="$work/launches" FAKE_DONE_MISSING=1 PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$missing" --model model --prompt prompt --execution-policy p >/dev/null 2>&1
+[[ $(wc -l < "$work/launches") == 5 ]]
+status=$("$work/appliance/bin/run-status" --invocation-id "$missing")
+grep -q 'state: FAILED_OLLAMA_DONE_FIELD_MISSING' <<< "$status"
+grep -q 'done_present: false' <<< "$status"
+grep -q 'done: null' <<< "$status"
 printf 'PASS idempotent-run\n'
