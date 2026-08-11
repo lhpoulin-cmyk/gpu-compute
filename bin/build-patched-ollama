@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+upstream_commit=f1a0ffd6219b5ef82aee77254f895b383efb5486
+patch_sha256=4cc8126f2c30401875714fd7974d21389105cf4b018094f5cb3be24f1a803299
+patched_version=0.32.0+helix.repeatlimit.1
+
+usage() {
+  echo "usage: $0 --source SOURCE --output OUTPUT [--patch PATCH]" >&2
+}
+
+source_dir=
+output=
+patch_file=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/patches/ollama/v0.32.0-repeat-limit-terminalization.patch
+while (($#)); do
+  case "$1" in
+    --source) source_dir=${2:?}; shift 2 ;;
+    --output) output=${2:?}; shift 2 ;;
+    --patch) patch_file=${2:?}; shift 2 ;;
+    *) usage; exit 2 ;;
+  esac
+done
+
+[[ -n "$source_dir" && -n "$output" ]] || { usage; exit 2; }
+for command in git go sha256sum; do
+  command -v "$command" >/dev/null || { echo "missing command: $command" >&2; exit 1; }
+done
+[[ -d "$source_dir/.git" && -f "$patch_file" ]] || { echo "source or patch is unavailable" >&2; exit 1; }
+[[ $(git -C "$source_dir" rev-parse HEAD) == "$upstream_commit" ]] || { echo "unexpected Ollama source identity" >&2; exit 1; }
+[[ -z $(git -C "$source_dir" status --short) ]] || { echo "Ollama source must begin clean" >&2; exit 1; }
+[[ $(sha256sum "$patch_file" | awk '{print $1}') == "$patch_sha256" ]] || { echo "Ollama patch identity mismatch" >&2; exit 1; }
+
+git -C "$source_dir" apply --check "$patch_file"
+git -C "$source_dir" apply "$patch_file"
+gofmt -w \
+  "$source_dir/llm/server.go" \
+  "$source_dir/llm/llama_server.go" \
+  "$source_dir/llm/llama_server_test.go" \
+  "$source_dir/server/routes_generate_test.go"
+
+(
+  cd -- "$source_dir"
+  go test ./llm ./server -run 'TestLlamaServerCompletion(RepeatLimitTerminalizes|CancellationRemainsAnError|CleanStreamWithoutStopRemainsNonterminal)|TestGenerateHandlerRepeatLimitTerminalization'
+  go build -buildvcs=false -trimpath \
+    -ldflags "-s -w -X=github.com/ollama/ollama/version.Version=$patched_version -X=github.com/ollama/ollama/server.mode=release" \
+    -o "$output" .
+)
+
+chmod 0755 "$output"
+sha256sum "$output"

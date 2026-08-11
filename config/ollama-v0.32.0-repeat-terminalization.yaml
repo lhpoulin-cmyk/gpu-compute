@@ -1,0 +1,33 @@
+schema_version: 1
+runtime_deviation_id: OLLAMA_V0_32_0_REPEAT_LIMIT_TERMINALIZATION_V1
+status: BUILT_AND_MODEL_FREE_VALIDATED
+upstream:
+  version: 0.32.0
+  release_tag: v0.32.0
+  source_commit: f1a0ffd6219b5ef82aee77254f895b383efb5486
+  binary_sha256: e010ce570cfa04334b30867c228a45781857b2ff5071630f3f59ef7cc2513d1f
+  binary_build_id: 0e105e59ddca69a63978644d2a642122f2c14da5
+patch:
+  path: patches/ollama/v0.32.0-repeat-limit-terminalization.patch
+  sha256: 4cc8126f2c30401875714fd7974d21389105cf4b018094f5cb3be24f1a803299
+  semantic_change: token-repeat guard emits terminal repeat_limit outcome
+  repeat_threshold: 30
+build:
+  go_version: 1.26.0
+  go_package: golang-1.26-go_1.26.0-1_amd64.deb
+  go_package_sha256: 2f00041ce0801cd5ebc09671fae87d3cdc9b445103dec931bb9db799b40d8c32
+  go_source_package: golang-1.26-src_1.26.0-1_all.deb
+  go_source_package_sha256: 16b5d3f288826179cb98b1af9408cf98dee4224fe116b9ef81c31c6cfdabb49a
+  recipe: bin/build-patched-ollama
+  version_string: 0.32.0+helix.repeatlimit.1
+patched_binary:
+  sha256: b53a386d6e2f8e17a360eb3d08bfc17e3e475d03918d07ace386c359324ef143
+  build_id: ffd1f9f6c8ffd69fdca1316e7c032447479fe139
+  size_bytes: 35186800
+native_payload:
+  source: unmodified upstream v0.32.0 installation
+  sorted_file_manifest_sha256: 5eb7a6843744e33ce1804e88a1cd9d94344e9b4464e8628124883c3f8d095b73
+wire_semantics:
+  done: true
+  done_reason: repeat_limit
+  evidence_classification: MODEL_REPEAT_LIMIT

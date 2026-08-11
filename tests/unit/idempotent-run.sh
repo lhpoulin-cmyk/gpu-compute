@@ -33,6 +33,11 @@ if [[ -n ${FAKE_DONE_MISSING:-} ]]; then
   printf '%s\n' '{"done":null,"done_present":false,"done_reason":null,"done_reason_present":false,"eval_count":null,"eval_count_present":false,"evidence_contract":"OLLAMA_RESPONSE_META_V2","failure_classification":"OLLAMA_DONE_FIELD_MISSING","model":"model","model_present":true,"prompt_eval_count":null,"prompt_eval_count_present":false,"response_byte_count":16,"response_present":true,"response_sha256":"x"}' > "$metadata"
   exit 21
 fi
+if [[ -n ${FAKE_REPEAT_LIMIT:-} ]]; then
+  printf 'partial-response' > "$partial"
+  printf '%s\n' '{"done":true,"done_present":true,"done_reason":"repeat_limit","done_reason_present":true,"eval_count":32,"eval_count_present":true,"evidence_contract":"OLLAMA_RESPONSE_META_V2","failure_classification":null,"outcome_classification":"MODEL_REPEAT_LIMIT","model":"model","model_present":true,"prompt_eval_count":5,"prompt_eval_count_present":true,"response_byte_count":16,"response_present":true,"response_sha256":"x"}' > "$metadata"
+  exit 23
+fi
 printf 'response' > "$output"
 printf '%s\n' '{"done":true,"done_present":true,"done_reason":"stop","done_reason_present":true,"eval_count":1,"eval_count_present":true,"evidence_contract":"OLLAMA_RESPONSE_META_V2","failure_classification":null,"model":"model","model_present":true,"prompt_eval_count":1,"prompt_eval_count_present":true,"response_byte_count":8,"response_present":true,"response_sha256":"x"}' > "$metadata"
 SH
@@ -93,4 +98,15 @@ status=$("$work/appliance/bin/run-status" --invocation-id "$missing")
 grep -q 'state: FAILED_OLLAMA_DONE_FIELD_MISSING' <<< "$status"
 grep -q 'done_present: false' <<< "$status"
 grep -q 'done: null' <<< "$status"
+repeat=alpha-test-family-C03-t0007-abcdef
+! FAKE_LAUNCHES="$work/launches" FAKE_REPEAT_LIMIT=1 PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$repeat" --model model --prompt prompt --execution-policy p >/dev/null 2>&1
+[[ $(wc -l < "$work/launches") == 6 ]]
+status=$("$work/appliance/bin/run-status" --invocation-id "$repeat")
+grep -q 'state: FAILED_MODEL_REPEAT_LIMIT' <<< "$status"
+grep -q 'partial_response_available: yes' <<< "$status"
+grep -q 'done: true' <<< "$status"
+grep -q 'done_reason: "repeat_limit"' <<< "$status"
+grep -q 'outcome_classification: "MODEL_REPEAT_LIMIT"' <<< "$status"
+[[ ! -e "$work/appliance/evidence/invocations/$repeat/response.txt" ]]
+[[ -e "$work/appliance/evidence/invocations/$repeat/partial-response.txt" ]]
 printf 'PASS idempotent-run\n'

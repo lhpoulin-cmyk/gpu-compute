@@ -107,6 +107,7 @@ if [[ "$machine_response_status" -ne 0 ]]; then
     20) failure_state=FAILED_OLLAMA_NONTERMINAL_RESPONSE ;;
     21) failure_state=FAILED_OLLAMA_DONE_FIELD_MISSING ;;
     22) failure_state=FAILED_OLLAMA_INVALID_ENVELOPE ;;
+    23) failure_state=FAILED_MODEL_REPEAT_LIMIT ;;
     *) failure_state=FAILED_INFERENCE ;;
   esac
   {

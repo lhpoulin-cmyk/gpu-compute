@@ -1,5 +1,23 @@
 # Current state
 
+## Ollama repeat-limit terminalization
+
+The pinned Ollama v0.32.0 server has a model-independent local reporting patch
+identified by `OLLAMA_V0_32_0_REPEAT_LIMIT_TERMINALIZATION_V1`. The existing
+`tokenRepeat > 30` guard and all generation settings are unchanged. Guard
+activation now emits `done=true`, `done_reason=repeat_limit`, retains prior
+content, and stops through the existing terminal callback path. Controlled-run
+evidence records this as `MODEL_REPEAT_LIMIT`; it is model behavior, not a
+runtime failure, and its partial content never becomes successful
+`response.txt`.
+
+The upstream commit, patch hash, temporary distro Go toolchain, unmodified
+native payload, and patched binary identity are pinned in
+`config/ollama-v0.32.0-repeat-terminalization.yaml`. The source patch contains
+model-free Completion and API tests plus normal-stop and cancellation
+regressions. The separate clean-SSE-without-stop fallthrough remains unchanged
+and documented rather than being folded into this repair.
+
 ## Idempotent controlled inference
 
 Controlled runs require a bounded caller invocation ID. Durable state beneath
@@ -18,6 +36,11 @@ that artifact and `ollama-envelope-meta.json` to the invocation and job, and
 fails closed with a distinct state. `bin/run-status` exposes bounded hashes and
 terminality evidence. `OLLAMA_MACHINE_RESPONSE_V1` generation transport is
 unchanged, and completion evidence is never model-visible.
+
+A terminal `repeat_limit` envelope is intentionally different from ordinary
+terminal success: exact prior content is retained as evaluator-only
+`partial-response.txt`, status is `FAILED_MODEL_REPEAT_LIMIT`, and the coding
+parser never receives it as a completed request.
 
 `bin/ollama-http-forensics` is a separate evaluator-only diagnostic surface
 bounded to the selected Devstral artifact, fixed loopback `/api/generate`

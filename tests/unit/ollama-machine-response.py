@@ -75,10 +75,23 @@ for reason in ("stop", "length"):
     assert metadata["prompt_eval_count"] == 17
     assert metadata["eval_count_present"] is True
     assert metadata["eval_count"] == 23
+    assert metadata["outcome_classification"] is None
     assert captured["url"] == "http://127.0.0.1:11434/api/generate"
     assert json.loads(captured["payload"].decode()) == {
         "model": "qwen3-coder:30b", "prompt": "neutral prompt", "stream": False,
     }
+
+repeat = envelope(done_reason="repeat_limit")
+response, metadata_bytes, outcome = helper.response_and_metadata(
+    "qwen3-coder:30b", "neutral prompt", opener_for(json.dumps(repeat).encode())
+)
+metadata = json.loads(metadata_bytes)
+assert outcome == "REPEAT_LIMIT"
+assert response == repeat["response"].encode()
+assert metadata["done"] is True
+assert metadata["done_reason"] == "repeat_limit"
+assert metadata["failure_classification"] is None
+assert metadata["outcome_classification"] == "MODEL_REPEAT_LIMIT"
 
 nonterminal = envelope(done=False)
 response, metadata_bytes, outcome = helper.response_and_metadata(
@@ -160,5 +173,6 @@ def run_main(outcome, expected_exit):
 run_main("TERMINAL", 0)
 run_main("NONTERMINAL", helper.EXIT_NONTERMINAL)
 run_main("DONE_MISSING", helper.EXIT_DONE_MISSING)
+run_main("REPEAT_LIMIT", helper.EXIT_REPEAT_LIMIT)
 
 print("ollama-machine-response: PASS")

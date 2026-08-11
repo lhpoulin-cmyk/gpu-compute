@@ -24,7 +24,8 @@ value = json.load(open(sys.argv[1], encoding="utf-8"))
 def show(name):
     print(f"{name}: {json.dumps(value.get(name), separators=(',', ':'))}")
 for field in (
-    "evidence_contract", "failure_classification", "model_present", "model",
+    "evidence_contract", "failure_classification", "outcome_classification",
+    "model_present", "model",
     "response_present", "response_byte_count", "response_sha256",
     "done_present", "done", "done_reason_present", "done_reason",
     "prompt_eval_count_present", "prompt_eval_count", "eval_count_present",

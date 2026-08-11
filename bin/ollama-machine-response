@@ -29,6 +29,7 @@ OPTIONAL_NUMERIC_FIELDS = (
 EXIT_NONTERMINAL = 20
 EXIT_DONE_MISSING = 21
 EXIT_INVALID_ENVELOPE = 22
+EXIT_REPEAT_LIMIT = 23
 
 
 def _present(envelope: dict, field: str) -> tuple[bool, object | None]:
@@ -122,6 +123,10 @@ def response_and_metadata(
         metadata["failure_classification"] = "OLLAMA_DONE_FIELD_INVALID"
         return response_bytes, _metadata_bytes(metadata), "INVALID"
     metadata["failure_classification"] = None
+    if done_reason == "repeat_limit":
+        metadata["outcome_classification"] = "MODEL_REPEAT_LIMIT"
+        return response_bytes, _metadata_bytes(metadata), "REPEAT_LIMIT"
+    metadata["outcome_classification"] = None
     return response_bytes, _metadata_bytes(metadata), "TERMINAL"
 
 
@@ -163,6 +168,9 @@ def main(argv: list[str]) -> int:
     if outcome == "DONE_MISSING":
         print("OLLAMA_DONE_FIELD_MISSING", file=sys.stderr)
         return EXIT_DONE_MISSING
+    if outcome == "REPEAT_LIMIT":
+        print("MODEL_REPEAT_LIMIT", file=sys.stderr)
+        return EXIT_REPEAT_LIMIT
     print("OLLAMA_INVALID_ENVELOPE", file=sys.stderr)
     return EXIT_INVALID_ENVELOPE
 

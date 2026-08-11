@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-11 Ollama repeat-limit terminalization
+
+- Carry a minimal local patch against exact upstream Ollama v0.32.0 commit
+  `f1a0ffd6219b5ef82aee77254f895b383efb5486` so the unchanged repeated-token
+  guard emits a terminal `repeat_limit` outcome instead of returning a nil
+  context error and closing HTTP 200 nonterminally.
+- Add a reproducible server-only Go build recipe, exact patch/toolchain/binary
+  provenance, model-free Completion and streaming/non-streaming route tests,
+  normal-stop and cancellation regressions, and an upstream-ready issue packet.
+- Classify the terminal model outcome as `MODEL_REPEAT_LIMIT`, retaining its
+  prior content as evaluator-only partial evidence rather than a successful
+  coding response.
+
 ## 2026-08-11 Ollama nonterminal HTTP forensics
 
 - Add a Devstral-bounded, evaluator-only HTTP capture that records exact
