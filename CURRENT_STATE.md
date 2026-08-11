@@ -8,6 +8,14 @@ Controlled runs require a bounded caller invocation ID. Durable state beneath
 a matching ID never relaunches inference; `bin/run-status` exposes recovery
 state. Model identity, runtime policy, and accepted offload remain unchanged.
 
+Successful invocations also retain evaluator-only Ollama completion evidence
+under `OLLAMA_RESPONSE_META_V1`. The authoritative `response.txt` remains the
+exact API `response` field bytes and keeps its existing SHA-256 identity;
+`ollama-response-meta.json` separately retains the terminal flag/reason, token
+counts, and API durations. The sidecar is bound by hash to both invocation and
+job evidence. `OLLAMA_MACHINE_RESPONSE_V1` request/response semantics are
+unchanged, and completion evidence is never model-visible.
+
 ## Accepted host / VM state
 
 Accepted:

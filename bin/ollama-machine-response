@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write exactly one Ollama /api/generate response field to a file.
+"""Write one exact Ollama response field plus trusted completion evidence.
 
 This is a deliberately narrow appliance helper.  Its loopback endpoint is
 fixed, and callers cannot choose arbitrary HTTP targets or response envelopes.
@@ -7,15 +7,28 @@ fixed, and callers cannot choose arbitrary HTTP targets or response envelopes.
 
 import argparse
 import json
+import os
+from pathlib import Path
 import sys
 import urllib.error
 import urllib.request
 
 
 ENDPOINT = "http://127.0.0.1:11434/api/generate"
+EVIDENCE_CONTRACT = "OLLAMA_RESPONSE_META_V1"
+COMPLETION_FIELDS = (
+    "prompt_eval_count",
+    "eval_count",
+    "total_duration",
+    "load_duration",
+    "prompt_eval_duration",
+    "eval_duration",
+)
 
 
-def response_bytes(model: str, prompt: str, opener=urllib.request.urlopen) -> bytes:
+def response_and_metadata(
+    model: str, prompt: str, opener=urllib.request.urlopen
+) -> tuple[bytes, bytes]:
     payload = json.dumps(
         {"model": model, "prompt": prompt, "stream": False},
         separators=(",", ":"),
@@ -32,10 +45,43 @@ def response_bytes(model: str, prompt: str, opener=urllib.request.urlopen) -> by
         envelope = json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError(f"malformed Ollama machine response: {error}") from error
-    text = envelope.get("response") if isinstance(envelope, dict) else None
+    if not isinstance(envelope, dict):
+        raise ValueError("Ollama machine response envelope is not an object")
+    text = envelope.get("response")
     if not isinstance(text, str) or not text:
         raise ValueError("Ollama machine response is missing a non-empty response field")
-    return text.encode("utf-8")
+    response_model = envelope.get("model")
+    if not isinstance(response_model, str) or response_model != model:
+        raise ValueError("Ollama machine response model identity is invalid")
+    if envelope.get("done") is not True:
+        raise ValueError("Ollama machine response is not terminal")
+    done_reason_present = "done_reason" in envelope
+    done_reason = envelope.get("done_reason")
+    if done_reason_present and not isinstance(done_reason, str):
+        raise ValueError("Ollama machine response done_reason is invalid")
+    metadata = {
+        "evidence_contract": EVIDENCE_CONTRACT,
+        "model": response_model,
+        "done": True,
+        "done_reason_present": done_reason_present,
+        "done_reason": done_reason if done_reason_present else None,
+    }
+    for field in COMPLETION_FIELDS:
+        value = envelope.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValueError(f"Ollama machine response {field} is invalid")
+        metadata[field] = value
+    metadata_bytes = (
+        json.dumps(metadata, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    return text.encode("utf-8"), metadata_bytes
+
+
+def _write_exclusive(path: Path, data: bytes) -> None:
+    with path.open("xb") as output:
+        output.write(data)
+        output.flush()
+        os.fsync(output.fileno())
 
 
 def main(argv: list[str]) -> int:
@@ -45,12 +91,23 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--prompt", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--metadata-output", required=True)
     args = parser.parse_args(argv)
+    output_path = Path(args.output)
+    metadata_path = Path(args.metadata_output)
+    created: list[Path] = []
     try:
-        data = response_bytes(args.model, args.prompt)
-        with open(args.output, "xb") as output:
-            output.write(data)
+        data, metadata = response_and_metadata(args.model, args.prompt)
+        _write_exclusive(output_path, data)
+        created.append(output_path)
+        _write_exclusive(metadata_path, metadata)
+        created.append(metadata_path)
     except (OSError, ValueError, urllib.error.URLError) as error:
+        for path in created:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
         print(f"machine response transport failed: {error}", file=sys.stderr)
         return 1
     return 0

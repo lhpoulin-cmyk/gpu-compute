@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-11 Ollama completion evidence
+
+- Retain a hash-bound `OLLAMA_RESPONSE_META_V1` sidecar for successful
+  controlled invocations, preserving Ollama terminal reason, token counts, and
+  durations without changing the exact response bytes or model-visible
+  transport.
+- Fail closed on nonterminal or malformed Ollama envelopes and expose bounded
+  sidecar availability through `bin/run-status`.
+
 ## 2026-08-11 Devstral runtime profile
 
 - Register the gpu-cp accepted exact Devstral Small 2 24B Q4 profile at the

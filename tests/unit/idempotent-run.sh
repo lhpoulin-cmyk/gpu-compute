@@ -15,8 +15,13 @@ printf 'launch\n' >> "${FAKE_LAUNCHES:?}"
 [[ -z ${FAKE_DELAY:-} ]] || sleep "$FAKE_DELAY"
 [[ -z ${FAKE_FAIL:-} ]] || exit 1
 while [[ $# -gt 0 ]]; do
-  if [[ $1 == --output ]]; then printf 'response' > "$2"; exit 0; fi
-  shift
+  case "$1" in
+    --output) printf 'response' > "$2"; shift 2 ;;
+    --metadata-output)
+      printf '%s\n' '{"done":true,"done_reason":"stop","done_reason_present":true,"eval_count":1,"eval_duration":1,"evidence_contract":"OLLAMA_RESPONSE_META_V1","load_duration":1,"model":"model","prompt_eval_count":1,"prompt_eval_duration":1,"total_duration":1}' > "$2"
+      shift 2 ;;
+    *) shift ;;
+  esac
 done
 SH
 for command in findmnt systemctl; do cat > "$work/fake/$command" <<'SH'
@@ -38,8 +43,16 @@ FAKE_LAUNCHES="$work/launches" PATH="$work/fake:$PATH" "$work/appliance/bin/run"
 FAKE_LAUNCHES="$work/launches" PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$id" --model model --prompt prompt --execution-policy p >/dev/null
 [[ $(wc -l < "$work/launches") == 1 ]]
 ! PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$id" --model model --prompt changed --execution-policy p >/dev/null 2>&1
-grep -q 'state: SUCCEEDED' <("$work/appliance/bin/run-status" --invocation-id "$id")
-grep -q 'state: NOT_STARTED' <("$work/appliance/bin/run-status" --invocation-id alpha-test-family-C03-t0002-abcdef)
+status=$("$work/appliance/bin/run-status" --invocation-id "$id")
+grep -q 'state: SUCCEEDED' <<< "$status"
+grep -q 'completion_meta_available: yes' <<< "$status"
+grep -q '^completion_meta_sha256: ' <<< "$status"
+job=$(cat "$work/appliance/evidence/invocations/$id/job-id")
+cmp "$work/appliance/evidence/invocations/$id/ollama-response-meta.json" "$work/appliance/evidence/$job/ollama-response-meta.json"
+grep -q '^response_evidence_contract: OLLAMA_RESPONSE_META_V1$' "$work/appliance/evidence/$job/meta.yaml"
+grep -q '^completion_meta_sha256: ' "$work/appliance/evidence/$job/meta.yaml"
+status=$("$work/appliance/bin/run-status" --invocation-id alpha-test-family-C03-t0002-abcdef)
+grep -q 'state: NOT_STARTED' <<< "$status"
 concurrent=alpha-test-family-C03-t0003-abcdef
 FAKE_LAUNCHES="$work/launches" FAKE_DELAY=1 PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$concurrent" --model model --prompt prompt --execution-policy p >/dev/null & first=$!
 FAKE_LAUNCHES="$work/launches" FAKE_DELAY=1 PATH="$work/fake:$PATH" "$work/appliance/bin/run" --invocation-id "$concurrent" --model model --prompt prompt --execution-policy p >/dev/null 2>&1 & second=$!

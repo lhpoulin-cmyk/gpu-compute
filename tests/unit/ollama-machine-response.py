@@ -41,22 +41,75 @@ def opener_for(body, captured):
     return opener
 
 
-captured = {}
-expected = 'line one\n"quotes" and \\\\slashes'.encode("utf-8")
-body = json.dumps({"response": expected.decode("utf-8")}).encode("utf-8")
-actual = helper.response_bytes("qwen3-coder:30b", "neutral prompt", opener_for(body, captured))
-assert actual == expected
-assert captured["url"] == "http://127.0.0.1:11434/api/generate"
-assert captured["timeout"] == 180
-assert json.loads(captured["payload"].decode("utf-8")) == {
-    "model": "qwen3-coder:30b",
-    "prompt": "neutral prompt",
-    "stream": False,
-}
+def envelope(done_reason="stop"):
+    return {
+        "model": "qwen3-coder:30b",
+        "response": 'line one\n"quotes" and \\\\slashes',
+        "done": True,
+        "done_reason": done_reason,
+        "prompt_eval_count": 17,
+        "eval_count": 23,
+        "total_duration": 101,
+        "load_duration": 11,
+        "prompt_eval_duration": 31,
+        "eval_duration": 59,
+    }
 
-for malformed in (b"not-json", b"[]", b"{}", b'{"response":""}'):
+
+for reason in ("stop", "length"):
+    captured = {}
+    source = envelope(reason)
+    response, metadata_bytes = helper.response_and_metadata(
+        "qwen3-coder:30b",
+        "neutral prompt",
+        opener_for(json.dumps(source).encode("utf-8"), captured),
+    )
+    assert response == source["response"].encode("utf-8")
+    metadata = json.loads(metadata_bytes)
+    assert metadata == {
+        "evidence_contract": "OLLAMA_RESPONSE_META_V1",
+        "model": "qwen3-coder:30b",
+        "done": True,
+        "done_reason_present": True,
+        "done_reason": reason,
+        "prompt_eval_count": 17,
+        "eval_count": 23,
+        "total_duration": 101,
+        "load_duration": 11,
+        "prompt_eval_duration": 31,
+        "eval_duration": 59,
+    }
+    assert captured["url"] == "http://127.0.0.1:11434/api/generate"
+    assert captured["timeout"] == 180
+    assert json.loads(captured["payload"].decode("utf-8")) == {
+        "model": "qwen3-coder:30b",
+        "prompt": "neutral prompt",
+        "stream": False,
+    }
+
+absent_reason = envelope()
+del absent_reason["done_reason"]
+_, absent_metadata = helper.response_and_metadata(
+    "qwen3-coder:30b", "neutral", opener_for(json.dumps(absent_reason).encode(), {})
+)
+assert json.loads(absent_metadata)["done_reason_present"] is False
+assert json.loads(absent_metadata)["done_reason"] is None
+
+invalid_envelopes = [
+    b"not-json",
+    b"[]",
+    b"{}",
+    json.dumps({**envelope(), "response": ""}).encode(),
+    json.dumps({**envelope(), "done": False}).encode(),
+    json.dumps({**envelope(), "done_reason": 7}).encode(),
+    json.dumps({**envelope(), "eval_count": "23"}).encode(),
+    json.dumps({**envelope(), "model": "different"}).encode(),
+]
+for malformed in invalid_envelopes:
     try:
-        helper.response_bytes("qwen3-coder:30b", "neutral", opener_for(malformed, {}))
+        helper.response_and_metadata(
+            "qwen3-coder:30b", "neutral", opener_for(malformed, {})
+        )
     except ValueError:
         pass
     else:
@@ -64,12 +117,20 @@ for malformed in (b"not-json", b"[]", b"{}", b'{"response":""}'):
 
 with tempfile.TemporaryDirectory() as temp:
     output = pathlib.Path(temp) / "response.txt"
-    original = helper.response_bytes
-    helper.response_bytes = lambda *_args: b'{"probe":"exact"}'
+    metadata = pathlib.Path(temp) / "ollama-response-meta.json"
+    original = helper.response_and_metadata
+    expected_metadata = b'{"evidence_contract":"OLLAMA_RESPONSE_META_V1"}\n'
+    helper.response_and_metadata = lambda *_args: (
+        b'{"probe":"exact"}', expected_metadata
+    )
     try:
-        assert helper.main(["--model", "qwen3-coder:30b", "--prompt", "neutral", "--output", str(output)]) == 0
+        assert helper.main([
+            "--model", "qwen3-coder:30b", "--prompt", "neutral",
+            "--output", str(output), "--metadata-output", str(metadata),
+        ]) == 0
     finally:
-        helper.response_bytes = original
+        helper.response_and_metadata = original
     assert output.read_bytes() == b'{"probe":"exact"}'
+    assert metadata.read_bytes() == expected_metadata
 
 print("ollama-machine-response: PASS")

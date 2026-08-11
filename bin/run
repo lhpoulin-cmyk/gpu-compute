@@ -61,6 +61,7 @@ evidence_dir="$root/evidence/$job_id"; mkdir -p "$evidence_dir"
 printf '%s\n' "$job_id" > "$invocation/job-id"
 printf 'RUNNING\n' > "$invocation/state.tmp.$$"; sync -f "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; sync -f "$invocation"
 log="$evidence_dir/ollama.log"; meta="$evidence_dir/meta.yaml"; partial="$invocation/response.part"
+completion_partial="$invocation/ollama-response-meta.part"
 cat > "$meta" <<YAML
 job_id: $job_id
 invocation_id: $invocation_id
@@ -70,26 +71,37 @@ timestamp_start: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 execution_policy: $execution_policy
 YAML
 echo "[$job_id] running inference: model=$model invocation=$invocation_id"
-if ! "$root/bin/ollama-machine-response" --model "$model" --prompt "$prompt" --output "$partial" 2>"$log"; then
+if ! "$root/bin/ollama-machine-response" --model "$model" --prompt "$prompt" --output "$partial" --metadata-output "$completion_partial" 2>"$log"; then
+  rm -f -- "$partial" "$completion_partial"
   printf 'FAILED_INFERENCE\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; echo "status: failed" >> "$meta"; exit 1
 fi
 ps_snapshot="$evidence_dir/ollama-ps.txt"
 if ! ollama ps > "$ps_snapshot" 2>&1; then
-  rm -f "$partial"; printf 'FAILED_UNPROVEN\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1
+  rm -f -- "$partial" "$completion_partial"; printf 'FAILED_UNPROVEN\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1
 fi
 policy_evidence="$evidence_dir/policy-result.yaml"
 if ! "$root/bin/model-execution-policy" --evaluate-ps --model "$model" --execution-policy "$execution_policy" --ps-file "$ps_snapshot" > "$policy_evidence"; then
-  rm -f "$partial"; printf 'FAILED_RUNTIME_POLICY\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1
+  rm -f -- "$partial" "$completion_partial"; printf 'FAILED_RUNTIME_POLICY\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1
 fi
 cat "$policy_evidence" >> "$meta"
-[[ -s "$partial" ]] || { rm -f "$partial"; printf 'FAILED_EMPTY\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1; }
-sha=$(sha256sum "$partial" | awk '{print $1}'); mv "$partial" "$invocation/response.txt"; sync -f "$invocation/response.txt"
+[[ -s "$partial" && -s "$completion_partial" ]] || { rm -f -- "$partial" "$completion_partial"; printf 'FAILED_EMPTY\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1; }
+sha=$(sha256sum "$partial" | awk '{print $1}')
+completion_sha=$(sha256sum "$completion_partial" | awk '{print $1}')
+mv "$partial" "$invocation/response.txt"; sync -f "$invocation/response.txt"
+mv "$completion_partial" "$invocation/ollama-response-meta.json"; sync -f "$invocation/ollama-response-meta.json"
+if ! cp -- "$invocation/ollama-response-meta.json" "$evidence_dir/ollama-response-meta.json"; then
+  printf 'FAILED_EVIDENCE\n' > "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; exit 1
+fi
+sync -f "$evidence_dir/ollama-response-meta.json"
 cat >> "$meta" <<YAML
 timestamp_end: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 output_sha256: $sha
+response_evidence_contract: OLLAMA_RESPONSE_META_V1
+completion_meta_sha256: $completion_sha
 status: succeeded
 YAML
 printf '%s\n' "$sha" > "$invocation/output-sha256"
+printf '%s\n' "$completion_sha" > "$invocation/completion-meta-sha256"
 printf 'SUCCEEDED\n' > "$invocation/state.tmp.$$"; sync -f "$invocation/state.tmp.$$"; mv "$invocation/state.tmp.$$" "$invocation/state"; sync -f "$invocation"
 [[ -z "$output" ]] || cp -- "$invocation/response.txt" "$output"
 echo "[$job_id] succeeded invocation=$invocation_id (sha256: $sha)"

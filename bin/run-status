@@ -8,3 +8,5 @@ printf 'invocation_id: %s\nstate: %s\n' "$2" "$(cat "$directory/state" 2>/dev/nu
 [[ -f "$directory/job-id" ]] && printf 'job_id: %s\n' "$(cat "$directory/job-id")"
 [[ -f "$directory/response.txt" ]] && printf 'response_available: yes\n' || printf 'response_available: no\n'
 [[ -f "$directory/output-sha256" ]] && printf 'output_sha256: %s\n' "$(cat "$directory/output-sha256")"
+[[ -f "$directory/ollama-response-meta.json" ]] && printf 'completion_meta_available: yes\n' || printf 'completion_meta_available: no\n'
+[[ -f "$directory/completion-meta-sha256" ]] && printf 'completion_meta_sha256: %s\n' "$(cat "$directory/completion-meta-sha256")"
