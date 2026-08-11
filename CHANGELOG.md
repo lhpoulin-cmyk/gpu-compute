@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-11 Qwen2.5-Coder 14B runtime profile
+
+- Register the exact Qwen2.5-Coder 14B Q4_K_M artifact's measured Katra
+  profile at context 4096: 100% GPU / 0% CPU and 9,304 MiB peak VRAM.
+- Preserve the three no-retry neutral probe records under the canonical guest
+  evidence root and add exact-profile stale-digest coverage. Runtime acceptance
+  does not grant V2 production admission.
+
 ## 2026-08-11 Ollama repeat-limit terminalization
 
 - Carry a minimal local patch against exact upstream Ollama v0.32.0 commit

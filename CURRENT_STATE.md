@@ -158,6 +158,41 @@ GPU >= 88% and CPU <= 12%. `bin/run` now enforces that profile independently
 of the existing Qwen 80%/20% profile. Runtime acceptance does not grant coding
 qualification or supervised-production admission.
 
+## 2026-08-11 Qwen2.5-Coder 14B runtime acceptance
+
+`qwen2.5-coder:14b-instruct-q4_K_M` is present in the durable Ollama model
+library. The installed manifest SHA-256 is
+`9ec8897f747e246e970bc5cfdda85d22f1123dc2e3d34978a010a75968716849`.
+Its exact model blob is
+`ac9bc7a69dab38da1c790838955f1293420b55ab555ef6b4615efa1c1507b1ed`,
+8,988,110,784 bytes; its architecture is `qwen2`, parameter class 14.8B,
+quantization `Q4_K_M`, and model context metadata 32768. The config and
+template blobs also matched the selected manifest exactly.
+
+One authorized pull ran from 17:37:15Z through 17:39:27Z. Three and only three
+neutral non-streaming `/api/generate` probes then requested `num_ctx=4096`
+without any other generation override. Each returned HTTP 200, `done=true`,
+`done_reason=stop`, 42 prompt tokens, 6 evaluation tokens, and the exact
+21-byte response whose SHA-256 is
+`0c0798e15e34cfd496072aa8c7efc1958758710b3ce4b66064d9358c63ac26b8`.
+The cold total duration was 4.705 seconds, including a 4.516-second load; the
+warm total durations were 0.297 and 0.284 seconds. Effective context was 4096
+for the loaded runner.
+
+Ollama reported `100% GPU` placement. NVIDIA evidence observed 9,304 MiB peak
+VRAM and no CPU offload. Host available RAM remained at or above
+13,849,677,824 bytes with no swap. Ollama disabled mmap during the cold load
+under its headroom heuristic; this did not produce a host-pressure abort or
+operational degradation. Service and GPU health remained normal with no OOM,
+CUDA error, XID, or failed unit.
+
+The exact empirical profile is `qwen25-coder-14b-katra-4096`, mode `GPU_ONLY`,
+bound to the manifest, Q4_K_M quantization, `cuda-compute-katra`, `hv-katra`,
+and the RTX 5070 Ti. Raw evidence remains under
+`/srv/gpu-compute/evidence/20260811T173705Z-task10q-qwen25-acquisition/` and
+`/srv/gpu-compute/evidence/task10q-qwen25-14b-runtime-20260811/`. This is
+runtime acceptance only; V2 production admission has not run.
+
 ## 2026-08-10 deployment-path retirement
 
 `cuda-compute` is the former project/runtime name. The former deployment path

@@ -34,5 +34,9 @@ printf 'profile\tdevstral-small-2:24b-instruct-2512-q4_K_M\tdevstral-exact\tQ4_K
 if find_profile "$fixture" devstral-small-2:24b-instruct-2512-q4_K_M devstral-exact cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[PASS] exact Devstral profile applies\n'; else printf '[FAIL] exact Devstral profile applies\n' >&2; failures=$((failures + 1)); fi
 if find_profile "$fixture" devstral-small-2:24b-instruct-2512-q4_K_M different cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[FAIL] Devstral digest mismatch incorrectly applies profile\n' >&2; failures=$((failures + 1)); else printf '[PASS] Devstral digest mismatch leaves profile stale\n'; fi
 
+printf 'profile\tqwen2.5-coder:14b-instruct-q4_K_M\tqwen25-exact\tQ4_K_M\tcuda-compute-katra\thv-katra\tNVIDIA GeForce RTX 5070 Ti\tGPU_ONLY\t100\t0\t9304\tACCEPTED\n' >> "$fixture"
+if find_profile "$fixture" qwen2.5-coder:14b-instruct-q4_K_M qwen25-exact cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[PASS] exact Qwen2.5-Coder profile applies\n'; else printf '[FAIL] exact Qwen2.5-Coder profile applies\n' >&2; failures=$((failures + 1)); fi
+if find_profile "$fixture" qwen2.5-coder:14b-instruct-q4_K_M different cuda-compute-katra 'NVIDIA GeForce RTX 5070 Ti' >/dev/null; then printf '[FAIL] Qwen2.5-Coder digest mismatch incorrectly applies profile\n' >&2; failures=$((failures + 1)); else printf '[PASS] Qwen2.5-Coder digest mismatch leaves profile stale\n'; fi
+
 [[ $failures -eq 0 ]] || exit 1
 echo 'model-execution-policy: PASS'
