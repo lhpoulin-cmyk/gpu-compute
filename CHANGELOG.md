@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-11 Ollama nonterminal HTTP forensics
+
+- Add a Devstral-bounded, evaluator-only HTTP capture that records exact
+  non-stream and streaming response bodies, headers, ordered events, request
+  field presence, and runtime-profile evidence without changing the production
+  machine-response transport.
+
 ## 2026-08-11 Ollama failure-envelope evidence
 
 - Advance evaluator-only evidence retention to `OLLAMA_RESPONSE_META_V2`,

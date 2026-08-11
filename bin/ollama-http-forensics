@@ -1,0 +1,302 @@
+#!/usr/bin/env python3
+"""Capture bounded Ollama non-stream/stream HTTP evidence for Devstral.
+
+This is a forensic diagnostic, not the production machine-response transport.
+Its endpoint, model, request fields, timeout, and evidence root are fixed. It
+never interprets generated text as a coding request or executes an effect.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import socket
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+
+ENDPOINT = "http://127.0.0.1:11434/api/generate"
+MODEL = "devstral-small-2:24b-instruct-2512-q4_K_M"
+EXECUTION_POLICY = "gpu-primary-partial"
+EVIDENCE_CONTRACT = "OLLAMA_HTTP_FORENSICS_V1"
+EVIDENCE_ROOT = Path("/srv/gpu-compute/evidence/diagnostics")
+TIMEOUT_SECONDS = 180
+DIAGNOSTIC_ID = re.compile(r"task10n-c-(?:nonstream|stream)-[0-9]{8}T[0-9]{6}Z")
+NUMERIC_FIELDS = (
+    "prompt_eval_count",
+    "eval_count",
+    "total_duration",
+    "load_duration",
+    "prompt_eval_duration",
+    "eval_duration",
+)
+
+
+def _sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def request_payload(prompt: bytes, stream: bool) -> tuple[bytes, dict]:
+    text = prompt.decode("utf-8", errors="strict")
+    if not text:
+        raise ValueError("prompt is empty")
+    payload = json.dumps(
+        {"model": MODEL, "prompt": text, "stream": stream},
+        separators=(",", ":"),
+    ).encode("utf-8")
+    evidence = {
+        "evidence_contract": EVIDENCE_CONTRACT,
+        "endpoint": ENDPOINT,
+        "request_body_sha256": _sha(payload),
+        "request_body_byte_count": len(payload),
+        "model_present": True,
+        "model": MODEL,
+        "prompt_present": True,
+        "prompt_sha256": _sha(prompt),
+        "prompt_byte_count": len(prompt),
+        "stream_present": True,
+        "stream": stream,
+        "options_present": False,
+        "format_present": False,
+        "raw_present": False,
+        "keep_alive_present": False,
+    }
+    return payload, evidence
+
+
+def fetch_http(
+    payload: bytes,
+    opener=urllib.request.urlopen,
+) -> tuple[bytes, dict]:
+    request = urllib.request.Request(
+        ENDPOINT,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        response = opener(request, timeout=TIMEOUT_SECONDS)
+    except urllib.error.HTTPError as error:
+        response = error
+    chunks: list[bytes] = []
+    read_outcome = "EOF"
+    read_error_type = None
+    with response:
+        headers = response.headers
+        status = response.status
+        try:
+            while True:
+                chunk = response.read(65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+        except (TimeoutError, socket.timeout, urllib.error.URLError) as error:
+            read_outcome = "READ_ERROR"
+            read_error_type = type(error).__name__
+    body = b"".join(chunks)
+    metadata = {
+        "evidence_contract": EVIDENCE_CONTRACT,
+        "http_status": status,
+        "body_sha256": _sha(body),
+        "body_byte_count": len(body),
+        "read_outcome": read_outcome,
+        "read_error_type": read_error_type,
+    }
+    for field, header in (
+        ("content_type", "Content-Type"),
+        ("content_length", "Content-Length"),
+        ("transfer_encoding", "Transfer-Encoding"),
+        ("connection", "Connection"),
+    ):
+        value = headers.get(header)
+        metadata[f"{field}_present"] = value is not None
+        metadata[field] = value
+    return body, metadata
+
+
+def _event(raw: bytes, ordinal: int) -> dict:
+    encoded = raw.rstrip(b"\r\n")
+    metadata = {
+        "ordinal": ordinal,
+        "raw_event_sha256": _sha(raw),
+        "raw_event_byte_count": len(raw),
+    }
+    try:
+        value = json.loads(encoded.decode("utf-8", errors="strict"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        metadata.update({
+            "syntax_valid": False,
+            "parse_error_type": type(error).__name__,
+        })
+        return metadata
+    if not isinstance(value, dict):
+        metadata.update({"syntax_valid": True, "object": False})
+        return metadata
+    metadata.update({"syntax_valid": True, "object": True})
+    response_present = "response" in value
+    response = value.get("response")
+    response_bytes = response.encode("utf-8") if isinstance(response, str) else None
+    metadata.update({
+        "response_present": response_present,
+        "response_is_string": isinstance(response, str),
+        "response_sha256": _sha(response_bytes) if response_bytes is not None else None,
+        "response_byte_count": len(response_bytes) if response_bytes is not None else None,
+        "done_present": "done" in value,
+        "done": value.get("done"),
+        "done_reason_present": "done_reason" in value,
+        "done_reason": value.get("done_reason"),
+        "error_present": "error" in value,
+        "error": value.get("error"),
+    })
+    for name in NUMERIC_FIELDS:
+        metadata[f"{name}_present"] = name in value
+        metadata[name] = value.get(name)
+    return metadata
+
+
+def analyze_body(body: bytes, stream: bool) -> tuple[list[bytes], list[dict], bytes, dict]:
+    raw_events = [body] if not stream else [line for line in body.splitlines(keepends=True) if line.strip()]
+    events = [_event(raw, index) for index, raw in enumerate(raw_events, 1)]
+    fragments: list[bytes] = []
+    for raw in raw_events:
+        try:
+            value = json.loads(raw.rstrip(b"\r\n").decode("utf-8", errors="strict"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(value, dict) and isinstance(value.get("response"), str):
+            fragments.append(value["response"].encode("utf-8"))
+    concatenated = b"".join(fragments)
+    terminal = [event for event in events if event.get("done_present") and event.get("done") is True]
+    errors = [event for event in events if event.get("error_present")]
+    analysis = {
+        "evidence_contract": EVIDENCE_CONTRACT,
+        "stream": stream,
+        "event_count": len(events),
+        "intermediate_event_count": sum(event.get("done") is False for event in events),
+        "terminal_event_present": bool(terminal),
+        "terminal_event_ordinal": terminal[-1]["ordinal"] if terminal else None,
+        "terminal_done_reason_present": terminal[-1].get("done_reason_present") if terminal else None,
+        "terminal_done_reason": terminal[-1].get("done_reason") if terminal else None,
+        "explicit_error_event_count": len(errors),
+        "concatenated_response_sha256": _sha(concatenated),
+        "concatenated_response_byte_count": len(concatenated),
+    }
+    return raw_events, events, concatenated, analysis
+
+
+def _write(path: Path, data: bytes) -> None:
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with path.open("xb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _json(path: Path, value: object) -> None:
+    _write(path, (json.dumps(value, sort_keys=True, indent=2) + "\n").encode("utf-8"))
+
+
+def initialize_capture(root: Path, request_evidence: dict, profile: bytes = b"") -> None:
+    root.mkdir(mode=0o700, parents=True, exist_ok=False)
+    _json(root / "request-meta.json", request_evidence)
+    if profile:
+        _write(root / "artifact-profile.yaml", profile)
+
+
+def persist_http_capture(
+    root: Path,
+    body: bytes,
+    http_evidence: dict,
+    raw_events: list[bytes],
+    events: list[dict],
+    concatenated: bytes,
+    analysis: dict,
+) -> None:
+    _json(root / "http-meta.json", http_evidence)
+    _write(root / "http-body.bin", body)
+    for raw, event in zip(raw_events, events, strict=True):
+        stem = f"{event['ordinal']:04d}"
+        _write(root / "events" / f"{stem}.raw", raw)
+        _json(root / "events" / f"{stem}.json", event)
+    _write(root / "concatenated-response.txt", concatenated)
+    _json(root / "analysis.json", analysis)
+
+
+def _profile(root: Path) -> bytes:
+    result = subprocess.run(
+        [
+            str(root / "model-execution-policy"),
+            "--check-profile",
+            "--model", MODEL,
+            "--execution-policy", EXECUTION_POLICY,
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode:
+        raise RuntimeError(result.stderr.decode("utf-8", errors="replace"))
+    return result.stdout
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="capture bounded Devstral Ollama HTTP evidence")
+    parser.add_argument("--diagnostic-id", required=True)
+    parser.add_argument("--prompt-file", required=True)
+    parser.add_argument("--stream", choices=("false", "true"), required=True)
+    args = parser.parse_args(argv)
+    if not DIAGNOSTIC_ID.fullmatch(args.diagnostic_id):
+        raise SystemExit("invalid diagnostic identity")
+    prompt = Path(args.prompt_file).read_bytes()
+    stream = args.stream == "true"
+    payload, request_evidence = request_payload(prompt, stream)
+    script_root = Path(__file__).resolve().parent
+    profile = _profile(script_root)
+    destination = EVIDENCE_ROOT / args.diagnostic_id
+    initialize_capture(destination, request_evidence, profile)
+    try:
+        body, http_evidence = fetch_http(payload)
+        raw_events, events, concatenated, analysis = analyze_body(body, stream)
+        persist_http_capture(
+            destination, body, http_evidence,
+            raw_events, events, concatenated, analysis,
+        )
+        ps = subprocess.run(
+            ["ollama", "ps"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, check=False,
+        )
+        _write(destination / "ollama-ps.txt", ps.stdout + ps.stderr)
+        if ps.returncode == 0:
+            policy = subprocess.run(
+                [
+                    str(script_root / "model-execution-policy"), "--evaluate-ps",
+                    "--model", MODEL, "--execution-policy", EXECUTION_POLICY,
+                    "--ps-file", str(destination / "ollama-ps.txt"),
+                ],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, check=False,
+            )
+            _write(destination / "runtime-policy.yaml", policy.stdout + policy.stderr)
+        print(json.dumps(analysis, sort_keys=True))
+        return 0
+    except (OSError, ValueError, RuntimeError, urllib.error.URLError) as error:
+        try:
+            _json(destination / "transport-error.json", {
+                "evidence_contract": EVIDENCE_CONTRACT,
+                "error_type": type(error).__name__,
+            })
+        except OSError:
+            pass
+        print(f"forensic capture failed: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

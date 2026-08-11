@@ -19,6 +19,14 @@ fails closed with a distinct state. `bin/run-status` exposes bounded hashes and
 terminality evidence. `OLLAMA_MACHINE_RESPONSE_V1` generation transport is
 unchanged, and completion evidence is never model-visible.
 
+`bin/ollama-http-forensics` is a separate evaluator-only diagnostic surface
+bounded to the selected Devstral artifact, fixed loopback `/api/generate`
+endpoint, exact prompt file, and explicit stream boolean. It captures request
+field presence, HTTP status/headers, the entire response body, ordered event
+bytes, concatenated response identity, and the accepted runtime profile. It
+does not parse coding requests, execute effects, or replace
+`OLLAMA_MACHINE_RESPONSE_V1`.
+
 ## Accepted host / VM state
 
 Accepted:
